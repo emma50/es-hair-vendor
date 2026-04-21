@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  slug        String    @unique
+  description String?
+  image       String?
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Product {
+  id               String           @id @default(cuid())
+  name             String
+  slug             String           @unique
+  description      String
+  shortDescription String?
+  categoryId       String
+  basePrice        Decimal          @db.Decimal(10, 2)
+  compareAtPrice   Decimal?         @db.Decimal(10, 2)
+  currency         String           @default("NGN")
+  sku              String?          @unique
+  stockQuantity    Int              @default(0)
+  isActive         Boolean          @default(true)
+  isFeatured       Boolean          @default(false)
+  tags             String[]         @default([])
+  metadata         Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  category         Category         @relation(fields: [categoryId], references: [id])
+  images           ProductImage[]
+  variants         ProductVariant[]
+  orderItems       OrderItem[]
+
+  @@index([categoryId])
+  @@index([isActive, isFeatured])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  url       String
+  publicId  String
+  alt       String?
+  width     Int?
+  height    Int?
+  sortOrder Int     @default(0)
+  isPrimary Boolean @default(false)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model ProductVariant {
+  id            String      @id @default(cuid())
+  productId     String
+  name          String
+  label         String
+  price         Decimal     @db.Decimal(10, 2)
+  stockQuantity Int         @default(0)
+  sku           String?     @unique
+  isActive      Boolean     @default(true)
+  metadata      Json?
+  product       Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems    OrderItem[]
+
+  @@index([productId])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  /// Chargeback raised by the cardholder's bank. Stock stays subtracted
+  /// until the dispute resolves — a lost dispute finalises to REFUNDED
+  /// (with a credit back), a won dispute returns to its prior active
+  /// status (manual admin action).
+  DISPUTED
+}
+
+enum OrderChannel {
+  PAYSTACK
+  WHATSAPP
+}
+
+model Order {
+  id               String       @id @default(cuid())
+  orderNumber      String       @unique
+  /// Cryptographic capability token (32 random bytes, base64url).
+  /// Used to authorize anonymous customers to view their own order on
+  /// the success page without authentication. Returned in an HTTP-only
+  /// cookie after order creation and as a URL query parameter.
+  accessToken      String       @unique
+  status           OrderStatus  @default(PENDING)
+  channel          OrderChannel
+  /// Optional link to the authenticated customer who placed the order.
+  /// NULL for anonymous checkouts. Used by the customer dashboard to
+  /// show "my orders" without relying on (spoofable) phone/email.
+  userId           String?      @db.Uuid
+  customerName     String
+  customerEmail    String?
+  customerPhone    String
+  shippingAddress  String?
+  shippingCity     String?
+  shippingState    String?
+  subtotal         Decimal      @db.Decimal(10, 2)
+  shippingCost     Decimal      @default(0) @db.Decimal(10, 2)
+  total            Decimal      @db.Decimal(10, 2)
+  currency         String       @default("NGN")
+  /// Merchant-side payment reference sent to Paystack and echoed back
+  /// on webhook + REST verify. 128 bits of `randomBytes` hex, and
+  /// `@unique` so a replayed or crafted reference can't silently
+  /// attach to a second order. Only set for PAYSTACK-channel orders.
+  paymentReference String?      @unique
+  /// Paystack's own numeric transaction id, captured the first time we
+  /// see a matching charge event. We use it as the refund target so
+  /// the refund API call succeeds even if the merchant reference has
+  /// been reused (it won't, but defence in depth).
+  paystackTransactionId String?
+  paymentStatus    String?
+  notes            String?
+  adminNotes       String?
+  /// When the capability token stops granting success-page access.
+  /// NULL means "no expiry" (legacy rows pre-migration); new orders
+  /// set this 30 days out so a leaked `?t=` URL eventually stops
+  /// showing PII. See `src/app/actions/orders.ts`.
+  accessTokenExpiresAt DateTime?
+  /// Filled in when a cron sweeps a PENDING Paystack order whose
+  /// payment we've never heard back about. A non-null value signals
+  /// "stock has been credited back and the order is frozen waiting
+  /// for an admin decision". Mutually exclusive with `stockReleased`
+  /// staying true past the cutoff window.
+  abandonedAt      DateTime?
+  /// Whether stock has currently been subtracted from inventory for this
+  /// order. TRUE from creation until a CANCELLED/REFUNDED transition
+  /// returns stock; FALSE once stock has been credited back. Idempotent
+  /// guard against the "cancel-then-uncancel" double-credit bug — a status
+  /// change only restores/re-decrements when this flag actually flips.
+  stockReleased    Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  items            OrderItem[]
+  user             User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([customerPhone])
+  @@index([createdAt])
+  @@index([userId])
+  /// Partial-scan index for the abandoned-order cleanup cron. A btree
+  /// on (status, createdAt) lets the sweeper find PENDING rows older
+  /// than the cutoff without a full table scan.
+  @@index([status, createdAt])
+}
+
+/// Webhook-event dedup store.
+///
+/// Paystack delivers at-least-once: on transient 5xx from us, or on
+/// worker eviction mid-processing, the same event can arrive two or
+/// more times. The existing handlers guard against this by filtering
+/// on `status: 'PENDING'` in the `updateMany`, which works for
+/// `charge.success` — but it does NOT protect the refund / dispute
+/// paths (those target orders that are ALREADY in a non-PENDING
+/// status) from double-side-effect (e.g. stock credited twice). An
+/// idempotency table keyed on Paystack's own event id is the
+/// defence-in-depth answer: first writer wins via the unique
+/// constraint, subsequent replays bounce with a P2002.
+///
+/// Retention: we don't prune. At ~1 row/payment-event and ~60 bytes
+/// each, 100k orders/yr × ~4 events = ~24MB/yr, which is negligible.
+model ProcessedWebhookEvent {
+  id               String   @id @default(cuid())
+  /// Paystack's event id from the webhook body. Usually `data.id`
+  /// or `id`; shape may vary by event type, so the handler passes
+  /// whatever is most-unique for that event.
+  paystackEventId  String   @unique
+  /// `charge.success`, `charge.failed`, `refund.processed`, etc.
+  /// Purely informational — not indexed or queried.
+  eventType        String
+  processedAt      DateTime @default(now())
+}
+
+model OrderItem {
+  id          String          @id @default(cuid())
+  orderId     String
+  productId   String
+  variantId   String?
+  name        String
+  variantName String?
+  price       Decimal         @db.Decimal(10, 2)
+  quantity    Int
+  total       Decimal         @db.Decimal(10, 2)
+  order       Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product         @relation(fields: [productId], references: [id])
+  variant     ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+}
+
+model StoreSettings {
+  id                String   @id @default("default")
+  storeName         String   @default("Emmanuel Sarah Hair")
+  storeEmail        String?
+  storePhone        String?
+  whatsappNumber    String?
+  currency          String   @default("NGN")
+  shippingFee       Decimal  @default(0) @db.Decimal(10, 2)
+  freeShippingMin   Decimal? @db.Decimal(10, 2)
+  announcementBar   String?
+  isMaintenanceMode Boolean  @default(false)
+  metadata          Json?
+  updatedAt         DateTime @updatedAt
+}
+
+model EmailSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+
+/// Application user table.
+///
+/// ARCHITECTURE:
+///   - Credentials (email + password) live EXCLUSIVELY in Supabase Auth
+///     (`auth.users`). This project never stores plaintext or hashed
+///     passwords on its own — Supabase owns login, password reset,
+///     and session management for every user, customer and admin alike.
+///   - This Prisma `User` table is the *application-side* identity
+///     record. Its `id` is the Supabase user UUID (explicit on insert —
+///     see `src/lib/auth/sync-user.ts`), so `User.id` and
+///     `auth.users.id` are one and the same.
+///   - `role` is the authoritative source for authorization (ADMIN vs
+///     CUSTOMER). Admin rows are provisioned out-of-band via
+///     `pnpm db:admin:provision`; self-signup always creates CUSTOMER.
+///   - `name` is the display name captured on signup or edited on
+///     `/account/profile`.
+///
+/// Lifecycle:
+///   - Signup → Supabase creates `auth.users`, then the `signUp` server
+///     action creates the matching application User row with role
+///     CUSTOMER.
+///   - Admin provision → `pnpm db:admin:provision` creates the Supabase
+///     user AND upserts the Prisma User with role ADMIN in one pass.
+///   - Login → Supabase validates the password; our helpers read the
+///     role off this Prisma row to authorize.
+///   - Delete → deleting a Supabase auth user does not cascade here.
+///     Deleting a Prisma User sets `Order.userId = NULL` (SetNull).
+model User {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  name      String?
+  role      UserRole @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+
+  @@index([role])
+}
+
+enum UserRole {
+  ADMIN
+  CUSTOMER
+}

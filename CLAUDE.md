@@ -14,44 +14,44 @@ See [SPEC.md](./SPEC.md) for the authoritative source on pinned technology versi
 
 ### Runtime & Language
 
-| Technology     | Pinned Version                  | Notes                                                                                  |
-| -------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
+| Technology     | Pinned Version                 | Notes                                                                                 |
+| -------------- | ------------------------------ | ------------------------------------------------------------------------------------- |
 | **Node.js**    | `24.x LTS` (latest: `24.14.1`) | Active LTS → Oct 2026, Maintenance → Apr 2028. Next.js 16 requires minimum Node 20.9. |
 | **TypeScript** | `6.0.x` (latest: `6.0.2`)      | Final JS-based TS. Bridge to Go-based TS 7.0. TS 5.9 is a fallback if needed.         |
-| **pnpm**       | `9.x` (latest stable)          | Preferred over npm for faster installs and strict dependency resolution.                |
+| **pnpm**       | `9.x` (latest stable)          | Preferred over npm for faster installs and strict dependency resolution.              |
 
 ### Framework & UI
 
-| Technology       | Pinned Version               | Notes                                                                                                  |
-| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Next.js**      | `15.x` (latest: `15.5.x`)   | Maintenance LTS. Full App Router, Turbopack (dev), React 19 support. Upgrade path to 16.x available.  |
-| **React**        | `19.2.x` (latest: `19.2.4`) | Required by Next.js 15. Server Components, Actions, Activity API.                                      |
-| **React DOM**    | `19.2.x` (latest: `19.2.4`) | Must match React version exactly.                                                                      |
-| **Tailwind CSS** | `4.x` (latest: `4.2.2`)     | CSS-native `@theme` config replaces `tailwind.config.js`. Rust-based engine, OKLCH colors.             |
+| Technology       | Pinned Version              | Notes                                                                                                |
+| ---------------- | --------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **Next.js**      | `15.x` (latest: `15.5.x`)   | Maintenance LTS. Full App Router, Turbopack (dev), React 19 support. Upgrade path to 16.x available. |
+| **React**        | `19.2.x` (latest: `19.2.4`) | Required by Next.js 15. Server Components, Actions, Activity API.                                    |
+| **React DOM**    | `19.2.x` (latest: `19.2.4`) | Must match React version exactly.                                                                    |
+| **Tailwind CSS** | `4.x` (latest: `4.2.2`)     | CSS-native `@theme` config replaces `tailwind.config.js`. Rust-based engine, OKLCH colors.           |
 
 ### Backend & Database
 
-| Technology                | Pinned Version            | Notes                                                                                             |
-| ------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
-| **Supabase (Platform)**   | Latest cloud (managed)    | Auto-updates. PostgREST v14 is default data API.                                                  |
-| **@supabase/supabase-js** | `2.x` (latest: `2.99.3`)  | Isomorphic client for auth, database, storage, realtime, edge functions.                          |
-| **Supabase CLI**          | `2.x` (latest: `2.84.2`)  | Local development, migrations, type generation.                                                   |
-| **Prisma ORM**            | `7.x` (latest: `7.4.x`)   | TypeScript query compiler (Rust-free), ES module-first, `prisma.config.ts`, `@prisma/adapter-pg`. |
-| **@prisma/client**        | `7.x` (match Prisma CLI)  | Must match `prisma` CLI version.                                                                  |
-| **@prisma/adapter-pg**    | `7.x` (match Prisma CLI)  | Required driver adapter for PostgreSQL in Prisma 7.                                               |
+| Technology                | Pinned Version           | Notes                                                                                             |
+| ------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------- |
+| **Supabase (Platform)**   | Latest cloud (managed)   | Auto-updates. PostgREST v14 is default data API.                                                  |
+| **@supabase/supabase-js** | `2.x` (latest: `2.99.3`) | Isomorphic client for auth, database, storage, realtime, edge functions.                          |
+| **Supabase CLI**          | `2.x` (latest: `2.84.2`) | Local development, migrations, type generation.                                                   |
+| **Prisma ORM**            | `7.x` (latest: `7.4.x`)  | TypeScript query compiler (Rust-free), ES module-first, `prisma.config.ts`, `@prisma/adapter-pg`. |
+| **@prisma/client**        | `7.x` (match Prisma CLI) | Must match `prisma` CLI version.                                                                  |
+| **@prisma/adapter-pg**    | `7.x` (match Prisma CLI) | Required driver adapter for PostgreSQL in Prisma 7.                                               |
 
 ### Payments
 
-| Technology              | Pinned Version            | Notes                                                                                            |
-| ----------------------- | ------------------------- | ------------------------------------------------------------------------------------------------ |
-| **@paystack/inline-js** | `2.x` (latest: `2.22.8`)  | Client-side checkout. Server-side verification via Paystack REST API — no dedicated Node SDK.    |
+| Technology              | Pinned Version           | Notes                                                                                         |
+| ----------------------- | ------------------------ | --------------------------------------------------------------------------------------------- |
+| **@paystack/inline-js** | `2.x` (latest: `2.22.8`) | Client-side checkout. Server-side verification via Paystack REST API — no dedicated Node SDK. |
 
 ### Media & Image Management
 
-| Technology                | Pinned Version            | Notes                                                                                |
-| ------------------------- | ------------------------- | ------------------------------------------------------------------------------------ |
-| **next-cloudinary**       | `6.x` (latest: `6.17.5`)  | `CldImage`, `CldUploadWidget`, `CldOgImage` wrapping Next.js Image with transforms. |
-| **cloudinary** (Node SDK) | `2.x` (latest: `2.9.0`)   | Server-side uploads, transformations, admin API.                                     |
+| Technology                | Pinned Version           | Notes                                                                               |
+| ------------------------- | ------------------------ | ----------------------------------------------------------------------------------- |
+| **next-cloudinary**       | `6.x` (latest: `6.17.5`) | `CldImage`, `CldUploadWidget`, `CldOgImage` wrapping Next.js Image with transforms. |
+| **cloudinary** (Node SDK) | `2.x` (latest: `2.9.0`)  | Server-side uploads, transformations, admin API.                                    |
 
 ### Developer Tooling
 

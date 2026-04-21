@@ -1,0 +1,514 @@
+@import 'tailwindcss';
+
+/* -------------------------------------------------------------------------
+ * Design tokens — adaptive luxury storefront
+ *
+ * The palette leans on warm neutrals with a champagne-gold accent that
+ * carries across hover, focus, and elevation states.
+ *
+ * Theme strategy
+ * --------------
+ * The @theme block below declares the DEFAULT (dark) values. Tailwind 4
+ * compiles every utility like `bg-midnight` to `var(--color-midnight)`,
+ * which means we can swap themes at runtime simply by overriding those
+ * custom properties on `[data-theme="light"]`. No utility needs to
+ * change and no class needs to be recomputed.
+ *
+ * The light theme (further down) is a cream + rose-gold treatment
+ * deliberately tuned for the same luxury hair brand — not a generic
+ * "white mode" invert. Every surface still reads as a boutique.
+ * ---------------------------------------------------------------------- */
+
+@theme {
+  /* Background elevation scale (obsidian → graphite) — DARK defaults */
+  --color-midnight: #050506;
+  --color-obsidian: #0a0a0c;
+  --color-charcoal: #121215;
+  --color-graphite: #1a1a1f;
+  --color-slate: #26262d;
+  --color-steel: #353540;
+
+  /* Text elevation scale — DARK defaults */
+  --color-muted: #6c6c78;
+  --color-silver: #9a9aa6;
+  --color-pearl: #e4e4ea;
+  --color-ivory: #f8f8f4;
+
+  /* Accent — champagne gold (same across themes, tuned per mode below) */
+  --color-gold: #d4a853;
+  --color-gold-dark: #b08430;
+  --color-gold-light: #f0d48a;
+  --color-champagne: #f7e7ce;
+  --color-rose-gold: #e8c4b8;
+
+  /* Semantic */
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+  --color-error: #f87171;
+  --color-info: #60a5fa;
+  --color-whatsapp: #25d366;
+
+  /* Typography */
+  --font-display: 'Playfair Display', 'Cormorant Garamond', serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Radius scale */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.75rem;
+
+  /* Shadows — layered elevation */
+  --shadow-glow: 0 0 32px -4px rgba(212, 168, 83, 0.22);
+  --shadow-glow-sm: 0 0 18px -4px rgba(212, 168, 83, 0.18);
+  --shadow-card:
+    0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 20px 48px -24px rgba(0, 0, 0, 0.6);
+  --shadow-card-hover:
+    0 1px 0 0 rgba(212, 168, 83, 0.12) inset,
+    0 28px 64px -24px rgba(0, 0, 0, 0.8), 0 0 40px -8px rgba(212, 168, 83, 0.18);
+  --shadow-inset-top: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+
+  /* Animations */
+  --animate-fade-up: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-shimmer: shimmer 2.4s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+
+  /* Theme surface tokens (used in @utility + inline styles) */
+  --surface-bloom-1: rgba(212, 168, 83, 0.055);
+  --surface-bloom-2: rgba(232, 196, 184, 0.035);
+  --surface-bloom-3: rgba(212, 168, 83, 0.03);
+  --surface-grain-opacity: 0.035;
+  --surface-grain-blend: overlay;
+}
+
+/* -------------------------------------------------------------------------
+ * Light theme overrides
+ *
+ * Activated by the ThemeProvider setting `data-theme="light"` on the
+ * <html> element. Every token redefined here is a CSS custom property
+ * that Tailwind utilities already reference via `var(...)`, so no
+ * component-level change is required to support either mode.
+ *
+ * Visual language for light mode:
+ *   - Background is warm cream (not pure white), echoing ivory silk
+ *   - Cards are pure ivory with faint slate borders
+ *   - Accent gold darkens slightly for AA contrast on cream
+ *   - The ambient radial bloom behind pages shifts to rose-gold
+ *   - Grain blend mode flips to `multiply` so it reads on light surfaces
+ * ---------------------------------------------------------------------- */
+
+[data-theme='light'] {
+  --color-midnight: #faf9f5;
+  --color-obsidian: #f5f4ef;
+  --color-charcoal: #ffffff;
+  --color-graphite: #f3f2ed;
+  --color-slate: #e2ddd1;
+  --color-steel: #c9c3b4;
+
+  --color-muted: #9a9487;
+  --color-silver: #6e685b;
+  --color-pearl: #2a2822;
+  --color-ivory: #141210;
+
+  /* Gold shifts deeper so it passes AA on cream backgrounds */
+  --color-gold: #a67c1e;
+  --color-gold-dark: #7e5c12;
+  --color-gold-light: #d4a853;
+  --color-champagne: #e8d6a8;
+  --color-rose-gold: #c59a8e;
+
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-error: #dc2626;
+  --color-info: #2563eb;
+
+  /* Ambient bloom — rose-gold on cream reads warmer than champagne */
+  --surface-bloom-1: rgba(166, 124, 30, 0.06);
+  --surface-bloom-2: rgba(197, 154, 142, 0.05);
+  --surface-bloom-3: rgba(166, 124, 30, 0.035);
+
+  /* Grain needs multiply + lower opacity to sit gracefully on light */
+  --surface-grain-opacity: 0.04;
+  --surface-grain-blend: multiply;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'],
+:root {
+  color-scheme: dark;
+}
+
+/* -------------------------------------------------------------------------
+ * Base element styles
+ * ---------------------------------------------------------------------- */
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Base canvas colour lives on <html> so the body pseudo-layers can sit
+     at z-index: -1 without dropping behind the viewport. This lets the
+     ambient gradients + grain render BEHIND every content element
+     without ever turning a fixed child (like the WhatsApp FAB) into a
+     relative/containing-block descendant. */
+  background-color: var(--color-midnight);
+  transition: background-color 0.45s ease;
+}
+
+body {
+  /* Transparent body → pseudo-elements below with z-index: -1 show through
+     against the html background. */
+  background-color: transparent;
+  color: var(--color-pearl);
+  font-family: var(--font-body);
+  font-feature-settings:
+    'cv02' on,
+    'cv03' on,
+    'cv04' on,
+    'cv11' on;
+  min-height: 100vh;
+  position: relative;
+  /* Smooth cross-fade between themes — avoids the jarring "flash" when the
+     user flips the toggle. */
+  transition: color 0.45s ease;
+}
+
+/* Ambient backdrop — extremely subtle radial gradients behind every page.
+   Uses --surface-bloom-* tokens so it re-tints under the light theme.
+   z-index: -1 sits BEHIND body content but IN FRONT of html's background
+   (body creates no stacking context without an explicit z-index). */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(
+      ellipse 80% 60% at 50% 0%,
+      var(--surface-bloom-1) 0%,
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 85% 100%,
+      var(--surface-bloom-2) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 50% 45% at 10% 90%,
+      var(--surface-bloom-3) 0%,
+      transparent 55%
+    );
+  transition: opacity 0.45s ease;
+}
+
+/* Subtle film grain — pure CSS, no bitmap. Stays below the content layer. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: var(--surface-grain-opacity);
+  mix-blend-mode: var(--surface-grain-blend);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Text selection — champagne on ink */
+::selection {
+  background-color: rgba(212, 168, 83, 0.35);
+  color: var(--color-ivory);
+  text-shadow: none;
+}
+
+/* Scrollbar — slim, gold on hover, consistent across the app */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 168, 83, 0.25) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: rgba(212, 168, 83, 0.15);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(212, 168, 83, 0.35);
+}
+
+/* Focus ring — champagne with offset, respects keyboard vs mouse */
+*:focus-visible {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Disable default autofill yellow */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--color-pearl);
+  -webkit-box-shadow: 0 0 0 100px var(--color-graphite) inset;
+  caret-color: var(--color-gold);
+}
+
+/* Heading rhythm — display font handles tight leading */
+h1,
+h2,
+h3,
+h4,
+h5 {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+/* -------------------------------------------------------------------------
+ * Utility classes — composable helpers used across the storefront
+ * ---------------------------------------------------------------------- */
+
+/* Gold gradient text — for hero accents and display headings */
+.text-gradient-gold {
+  background: linear-gradient(
+    135deg,
+    var(--color-gold-light) 0%,
+    var(--color-gold) 40%,
+    var(--color-rose-gold) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* Hairline divider — 1px gradient line, champagne to transparent */
+.divider-gold {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(212, 168, 83, 0.4),
+    transparent
+  );
+}
+
+/* Glass surface — used on the header, modals, etc. */
+.glass {
+  background-color: rgba(10, 10, 12, 0.72);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+/* Elevated card — matches shadow-card token with inset highlight */
+.card-elevated {
+  background: linear-gradient(
+    180deg,
+    rgba(26, 26, 31, 0.85) 0%,
+    rgba(18, 18, 21, 0.85) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(8px);
+}
+
+.card-elevated:hover {
+  border-color: rgba(212, 168, 83, 0.25);
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Shimmer overlay — animated champagne sheen */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(240, 212, 138, 0.18) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: shimmer 2.4s linear infinite;
+  pointer-events: none;
+}
+
+/* Reveal-on-mount — reserved for hero copy and section headings */
+.reveal {
+  animation: fade-up 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.reveal-delay-1 {
+  animation-delay: 0.08s;
+}
+.reveal-delay-2 {
+  animation-delay: 0.16s;
+}
+.reveal-delay-3 {
+  animation-delay: 0.24s;
+}
+.reveal-delay-4 {
+  animation-delay: 0.32s;
+}
+
+/* Hairline heading overline — "Collection" / "Featured" eyebrow text */
+.overline {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--color-gold);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.overline::before,
+.overline::after {
+  content: '';
+  display: block;
+  width: 1.75rem;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(212, 168, 83, 0.6));
+}
+
+.overline::after {
+  background: linear-gradient(to right, rgba(212, 168, 83, 0.6), transparent);
+}
+
+/* Keyframes */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Accessibility
+ * ---------------------------------------------------------------------- */
+
+/* Skip-to-content link — shown only on keyboard focus */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  z-index: 999;
+  padding: 0.625rem 1.25rem;
+  background-color: var(--color-gold);
+  color: var(--color-midnight);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-glow);
+}
+
+.skip-to-content:focus {
+  left: 0.75rem;
+  top: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* -------------------------------------------------------------------------
+ * Print — admin order invoices
+ * ---------------------------------------------------------------------- */
+
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+
+  body::before,
+  body::after {
+    display: none;
+  }
+
+  .skip-to-content,
+  nav,
+  aside,
+  button,
+  [role='navigation'] {
+    display: none !important;
+  }
+
+  .print\:block {
+    display: block !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  * {
+    border-color: #ccc !important;
+  }
+}

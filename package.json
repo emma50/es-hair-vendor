@@ -1,0 +1,84 @@
+{
+  "name": "emmanuel-sarah-hair",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "prisma generate && node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "prisma generate",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:seed:delete": "prisma migrate reset",
+    "db:studio": "prisma studio",
+    "db:demo:populate": "tsx scripts/dev-db/demo-catalog.ts",
+    "db:admin:provision": "tsx scripts/dev-db/provision-admin-auth.ts",
+    "db:mock:populate": "tsx scripts/dev-db/populate.ts",
+    "db:mock:read": "tsx scripts/dev-db/read.ts",
+    "db:mock:update": "tsx scripts/dev-db/update.ts",
+    "db:mock:delete": "tsx scripts/dev-db/delete.ts",
+    "db:mock:reset": "tsx scripts/dev-db/delete.ts --yes && tsx scripts/dev-db/populate.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "husky"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "~7.4.0",
+    "@prisma/client": "~7.4.0",
+    "@supabase/ssr": "^0.6.0",
+    "@supabase/supabase-js": "^2.99.0",
+    "@vercel/analytics": "^1.4.0",
+    "cloudinary": "^2.9.0",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.468.0",
+    "next": "~15.5.0",
+    "next-cloudinary": "^6.17.0",
+    "pg": "^8.20.0",
+    "react": "~19.2.4",
+    "react-dom": "~19.2.4",
+    "tailwind-merge": "^3.0.0",
+    "zod": "^3.24.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
+    "@tailwindcss/postcss": "~4.2.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "dotenv": "^16.4.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "~15.5.0",
+    "husky": "^9.0.0",
+    "prettier": "^3.0.0",
+    "prettier-plugin-tailwindcss": "^0.6.0",
+    "prisma": "~7.4.0",
+    "tailwindcss": "~4.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "~6.0.2",
+    "vitest": "^3.0.0"
+  }
+}
