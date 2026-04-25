@@ -9,6 +9,7 @@
  * action/path needs coverage.
  */
 
+import { Prisma } from '@prisma/client';
 import type {
   User as AppUser,
   Category,
@@ -23,6 +24,13 @@ import type {
   UserRole,
 } from '@prisma/client';
 
+type ProcessedWebhookEventRow = {
+  id: string;
+  paystackEventId: string;
+  eventType: string;
+  processedAt: Date;
+};
+
 type DBShape = {
   users: Map<string, AppUser>;
   categories: Map<string, Category>;
@@ -33,6 +41,7 @@ type DBShape = {
   orderItems: Map<string, OrderItem>;
   storeSettings: Map<string, StoreSettings>;
   emailSubscribers: Map<string, EmailSubscriber>;
+  processedWebhookEvents: Map<string, ProcessedWebhookEventRow>;
 };
 
 type SupabaseUser = {
@@ -64,6 +73,7 @@ export class FakeDB {
     orderItems: new Map(),
     storeSettings: new Map(),
     emailSubscribers: new Map(),
+    processedWebhookEvents: new Map(),
   };
 
   reset() {
@@ -469,7 +479,7 @@ export function makePrismaMock(fake: FakeDB) {
       data,
     }: {
       where: { id?: string; stockQuantity?: { gte?: number } };
-      data: { stockQuantity?: { decrement?: number } };
+      data: { stockQuantity?: { decrement?: number; increment?: number } };
     }) => {
       let count = 0;
       for (const p of db.products.values()) {
@@ -481,6 +491,9 @@ export function makePrismaMock(fake: FakeDB) {
           continue;
         if (data.stockQuantity?.decrement !== undefined) {
           p.stockQuantity -= data.stockQuantity.decrement;
+        }
+        if (data.stockQuantity?.increment !== undefined) {
+          p.stockQuantity += data.stockQuantity.increment;
         }
         count++;
       }
@@ -644,7 +657,12 @@ export function makePrismaMock(fake: FakeDB) {
       select,
       include,
     }: {
-      where: { id?: string; orderNumber?: string; accessToken?: string };
+      where: {
+        id?: string;
+        orderNumber?: string;
+        accessToken?: string;
+        paymentReference?: string;
+      };
       select?: Record<string, boolean | Record<string, unknown>>;
       include?: { items?: boolean };
     }) => {
@@ -656,6 +674,9 @@ export function makePrismaMock(fake: FakeDB) {
       } else if (where.accessToken) {
         for (const o of db.orders.values())
           if (o.accessToken === where.accessToken) row = o;
+      } else if (where.paymentReference) {
+        for (const o of db.orders.values())
+          if (o.paymentReference === where.paymentReference) row = o;
       }
       if (!row) return null;
       if (select) {
@@ -686,17 +707,33 @@ export function makePrismaMock(fake: FakeDB) {
       where,
       data,
     }: {
-      where: { paymentReference?: string; status?: string };
+      where: {
+        id?: string;
+        paymentReference?: string;
+        status?:
+          | string
+          | { in?: string[]; notIn?: string[]; not?: string };
+      };
       data: Partial<Order>;
     }) => {
       let count = 0;
       for (const o of db.orders.values()) {
+        if (where.id !== undefined && o.id !== where.id) continue;
         if (
           where.paymentReference !== undefined &&
           o.paymentReference !== where.paymentReference
         )
           continue;
-        if (where.status !== undefined && o.status !== where.status) continue;
+        if (where.status !== undefined) {
+          const s = where.status;
+          if (typeof s === 'string') {
+            if (o.status !== s) continue;
+          } else {
+            if (s.in && !s.in.includes(o.status)) continue;
+            if (s.notIn && s.notIn.includes(o.status)) continue;
+            if (s.not !== undefined && o.status === s.not) continue;
+          }
+        }
         Object.assign(o, data);
         count++;
       }
@@ -856,6 +893,35 @@ export function makePrismaMock(fake: FakeDB) {
     order,
     storeSettings,
     emailSubscriber,
+    processedWebhookEvent: {
+      create: async ({
+        data,
+      }: {
+        data: { paystackEventId: string; eventType: string };
+      }) => {
+        for (const row of db.processedWebhookEvents.values()) {
+          if (row.paystackEventId === data.paystackEventId) {
+            // The webhook handler narrows on
+            // `instanceof Prisma.PrismaClientKnownRequestError` with
+            // code P2002, so a plain Error wouldn't trigger the dedup
+            // branch — it would fall through to "log and proceed",
+            // which defeats the test. Construct the real class.
+            throw new Prisma.PrismaClientKnownRequestError(
+              'Unique constraint failed',
+              { code: 'P2002', clientVersion: 'test' },
+            );
+          }
+        }
+        const row: ProcessedWebhookEventRow = {
+          id: makeId('pwe'),
+          paystackEventId: data.paystackEventId,
+          eventType: data.eventType,
+          processedAt: new Date(),
+        };
+        db.processedWebhookEvents.set(row.id, row);
+        return row;
+      },
+    },
     $transaction,
   };
 
