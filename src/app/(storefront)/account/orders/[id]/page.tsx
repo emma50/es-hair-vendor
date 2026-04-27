@@ -27,22 +27,21 @@ export default async function OrderDetailPage({
   // that actually exists. Handle the two cases separately:
   //   - `null` return        → genuinely not this user's order → 404
   //   - thrown DB error      → let error.tsx show the retry UI
-  let order;
-  try {
-    order = await prisma.order.findFirst({
+  const order = await prisma.order
+    .findFirst({
       where: { id, userId: current.id },
       include: {
         items: {
           orderBy: { id: 'asc' },
         },
       },
+    })
+    .catch((error: unknown) => {
+      logServerError('accountOrderDetail', error);
+      // Re-throw so Next.js renders the nearest error.tsx (retry UI)
+      // rather than silently 404ing on a transient failure.
+      throw error;
     });
-  } catch (error) {
-    logServerError('accountOrderDetail', error);
-    // Re-throw so Next.js renders the nearest error.tsx (retry UI)
-    // rather than silently 404ing on a transient failure.
-    throw error;
-  }
 
   if (!order) notFound();
 

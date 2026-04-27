@@ -1,26 +1,23 @@
 /**
  * Thin logging helpers for server-side code.
  *
- * Why: spraying `console.error`/`console.warn` into production logs is
- * noisy — errors from expected user mistakes (validation, FK guards)
- * dominate useful signals. These helpers stay silent in production and
- * only emit in development, keeping server logs clean without losing
- * the local-debugging ergonomics.
+ * Emits to stdout/stderr in every environment — Vercel routes those to
+ * the function-logs view, which is the only way to know a webhook /
+ * cron / server action quietly broke. Previously these were silenced
+ * in production "to keep logs clean", which traded ops visibility for
+ * a small reduction in noise — wrong trade for a payments-handling
+ * app.
  *
  * If/when we wire a proper logger (pino, Sentry, etc.), swap the
  * implementation here and every call-site picks it up automatically.
  */
 
-const isDev = process.env.NODE_ENV !== 'production';
-
-/** Log a recoverable server-side error in dev, silent in production. */
+/** Log a recoverable server-side error. */
 export function logServerError(label: string, error: unknown): void {
-  if (!isDev) return;
   console.error(`[${label}]`, error);
 }
 
-/** Log a warning-level server-side event in dev, silent in production. */
+/** Log a warning-level server-side event. */
 export function logServerWarn(label: string, error: unknown): void {
-  if (!isDev) return;
   console.warn(`[${label}]`, error);
 }

@@ -2,7 +2,9 @@ import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
 import { serialize } from '@/lib/utils';
 import { safeQuery, safeList, safeFindOne } from './safe';
-import type { Prisma } from '@prisma/client';
+import { lagosStartOfDay, lagosStartOfWeek, lagosStartOfMonth } from '@/lib/time';
+import { isOrderStatus } from '@/lib/order-state';
+import { OrderStatus, type Prisma } from '@prisma/client';
 
 /**
  * Every export below is wrapped in `safeQuery` (or its list/findOne
@@ -413,8 +415,8 @@ export async function getAdminOrders({
   return safeQuery(
     async () => {
       const where: Prisma.OrderWhereInput = {};
-      if (status) {
-        where.status = status as any;
+      if (status && isOrderStatus(status)) {
+        where.status = status;
       }
       if (search) {
         where.OR = [
@@ -485,28 +487,20 @@ export async function getDashboardData() {
 
   return safeQuery(
     async () => {
+      // Bucket boundaries in Lagos time, not UTC. Without this the
+      // admin's "today's revenue" tile rolls over at 1 AM Lagos
+      // (UTC midnight) — yesterday's takings keep showing as "today"
+      // until 1 AM, and weekly/monthly tiles drift the same way.
       const now = new Date();
-      const startOfDay = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-      );
-      // Week starts on Monday (ISO 8601 / Nigerian business convention)
-      // rather than Sunday. `getDay()` returns 0 for Sunday, 1 for
-      // Monday ... 6 for Saturday — so we shift by `(day + 6) % 7`
-      // days to land on the preceding Monday (or today if today *is*
-      // Monday).
-      const startOfWeek = new Date(startOfDay);
-      const dayOfWeek = startOfWeek.getDay();
-      const daysSinceMonday = (dayOfWeek + 6) % 7;
-      startOfWeek.setDate(startOfWeek.getDate() - daysSinceMonday);
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfDay = lagosStartOfDay(now);
+      const startOfWeek = lagosStartOfWeek(now);
+      const startOfMonth = lagosStartOfMonth(now);
 
-      const confirmedStatuses = [
-        'CONFIRMED',
-        'PROCESSING',
-        'SHIPPED',
-        'DELIVERED',
+      const confirmedStatuses: OrderStatus[] = [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PROCESSING,
+        OrderStatus.SHIPPED,
+        OrderStatus.DELIVERED,
       ];
 
       // Batch all 5 queries into a single Promise.all — no N+1
@@ -519,21 +513,21 @@ export async function getDashboardData() {
       ] = await Promise.all([
         prisma.order.aggregate({
           where: {
-            status: { in: confirmedStatuses as any },
+            status: { in: confirmedStatuses },
             createdAt: { gte: startOfDay },
           },
           _sum: { total: true },
         }),
         prisma.order.aggregate({
           where: {
-            status: { in: confirmedStatuses as any },
+            status: { in: confirmedStatuses },
             createdAt: { gte: startOfWeek },
           },
           _sum: { total: true },
         }),
         prisma.order.aggregate({
           where: {
-            status: { in: confirmedStatuses as any },
+            status: { in: confirmedStatuses },
             createdAt: { gte: startOfMonth },
           },
           _sum: { total: true },

@@ -40,15 +40,17 @@ export async function safeQuery<T>(
   try {
     return await fn();
   } catch (error) {
-    if (process.env.NODE_ENV !== 'production') {
-      const message = error instanceof Error ? error.message : String(error);
-      // Truncate so a Prisma stack dump doesn't hijack the terminal.
-      const short =
-        message.length > 300 ? `${message.slice(0, 300)}…` : message;
-      console.warn(
-        `[safeQuery${label ? `:${label}` : ''}] failed, returning fallback: ${short}`,
-      );
-    }
+    // Logged in EVERY environment — silently swallowing read failures
+    // in prod made DB outages indistinguishable from "no rows match"
+    // and left admin pages mysteriously empty with no trace. Vercel
+    // routes console.warn to the function-logs view.
+    const message = error instanceof Error ? error.message : String(error);
+    // Truncate so a Prisma stack dump doesn't hijack the terminal.
+    const short =
+      message.length > 300 ? `${message.slice(0, 300)}…` : message;
+    console.warn(
+      `[safeQuery${label ? `:${label}` : ''}] failed, returning fallback: ${short}`,
+    );
     return fallback;
   }
 }

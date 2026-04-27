@@ -148,7 +148,7 @@ describe('admin authorization gate', () => {
 
   it('a CUSTOMER cannot updateOrderStatus', async () => {
     await seedCustomerAndSignIn();
-    const result = await updateOrderStatus('any-id', 'CONFIRMED');
+    const result = await updateOrderStatus('any-id', { status: 'CONFIRMED' });
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error).toBe('Unauthorized');
@@ -375,7 +375,7 @@ describe('admin order status transitions', () => {
   it('moves PENDING → CONFIRMED without touching stock', async () => {
     const { product, order } = await seedOrderForTest(2);
     const stockBefore = fakeDB.db.products.get(product.id)!.stockQuantity;
-    const result = await updateOrderStatus(order.id, 'CONFIRMED');
+    const result = await updateOrderStatus(order.id, { status: 'CONFIRMED' });
     expect(result.success).toBe(true);
     const updated = fakeDB.db.orders.get(order.id)!;
     expect(updated.status).toBe('CONFIRMED');
@@ -386,7 +386,7 @@ describe('admin order status transitions', () => {
     const { product, order } = await seedOrderForTest(3);
     // After create, product stock is 10 - 3 = 7.
     expect(fakeDB.db.products.get(product.id)!.stockQuantity).toBe(7);
-    const result = await updateOrderStatus(order.id, 'CANCELLED');
+    const result = await updateOrderStatus(order.id, { status: 'CANCELLED' });
     expect(result.success).toBe(true);
     // Stock restored to 10.
     expect(fakeDB.db.products.get(product.id)!.stockQuantity).toBe(10);
@@ -395,10 +395,10 @@ describe('admin order status transitions', () => {
 
   it('does not double-restore stock on repeat CANCELLED updates', async () => {
     const { product, order } = await seedOrderForTest(3);
-    await updateOrderStatus(order.id, 'CANCELLED');
+    await updateOrderStatus(order.id, { status: 'CANCELLED' });
     expect(fakeDB.db.products.get(product.id)!.stockQuantity).toBe(10);
     // Second CANCELLED update — status already CANCELLED, skip restore.
-    await updateOrderStatus(order.id, 'CANCELLED');
+    await updateOrderStatus(order.id, { status: 'CANCELLED' });
     expect(fakeDB.db.products.get(product.id)!.stockQuantity).toBe(10);
   });
 
@@ -412,7 +412,7 @@ describe('admin order status transitions', () => {
   });
 
   it('returns Order not found for an unknown id', async () => {
-    const result = await updateOrderStatus('ghost-order', 'SHIPPED');
+    const result = await updateOrderStatus('ghost-order', { status: 'SHIPPED' });
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error).toMatch(/not found/i);

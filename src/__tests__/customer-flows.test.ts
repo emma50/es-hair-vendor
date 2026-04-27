@@ -132,12 +132,22 @@ describe('customer sign-up flow', () => {
     expect(appUser.role).toBe('CUSTOMER');
   });
 
-  it('rejects duplicate email', async () => {
+  it('returns the same opaque success on duplicate email (no enumeration leak)', async () => {
+    // Deliberately collapses duplicate-email errors into the same
+    // success shape as a brand-new signup — otherwise the response
+    // distinguishes "this email is registered" from "this is new",
+    // which is a classic account-enumeration primitive. The Supabase
+    // dupe error is logged server-side; the caller sees "check your
+    // inbox" either way. See `src/app/actions/auth.ts:signUpCustomer`.
     await signUpCustomer(VALID_SIGNUP);
     const result = await signUpCustomer(VALID_SIGNUP);
-    expect(result.success).toBe(false);
-    if (result.success) return;
-    expect(result.error).toMatch(/already registered/i);
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.needsEmailConfirmation).toBe(true);
+    // No duplicate Prisma row was created.
+    expect(fakeDB.db.users.size).toBe(1);
+    // Supabase still has only the original user row.
+    expect(fakeSupabase.users.size).toBe(1);
   });
 
   it('returns fieldErrors for a weak password', async () => {
@@ -345,9 +355,17 @@ describe('guest Paystack checkout', () => {
 
   it('rejects unknown product id', async () => {
     seedCatalog();
+    // CUID-shaped but unseeded — exercises the "not found" branch
+    // rather than the upstream `.cuid()` Zod validator.
     const result = await createOrder(
       VALID_CHECKOUT,
-      [{ productId: 'ghost-id', variantId: null, quantity: 1 }],
+      [
+        {
+          productId: 'cghostprodaaaaaaaaaaaaaaa',
+          variantId: null,
+          quantity: 1,
+        },
+      ],
       'PAYSTACK',
     );
     expect(result.success).toBe(false);
@@ -359,7 +377,13 @@ describe('guest Paystack checkout', () => {
     const { product } = seedCatalog();
     const result = await createOrder(
       VALID_CHECKOUT,
-      [{ productId: product.id, variantId: 'no-such-variant', quantity: 1 }],
+      [
+        {
+          productId: product.id,
+          variantId: 'cghostvariantaaaaaaaaaaaa',
+          quantity: 1,
+        },
+      ],
       'PAYSTACK',
     );
     expect(result.success).toBe(false);

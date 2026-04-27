@@ -16,6 +16,7 @@ import {
   FakeCookies,
   FakeHeaders,
 } from './flow-mocks';
+import { _resetRateLimitForTests } from '@/lib/rate-limit';
 
 export const fakeDB = new FakeDB();
 export const prismaMock = makePrismaMock(fakeDB);
@@ -28,4 +29,5 @@ export function resetAll() {
   fakeDB.reset();
   fakeSupabase.reset();
   fakeCookies.reset();
+  _resetRateLimitForTests();
 }

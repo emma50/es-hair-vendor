@@ -66,7 +66,7 @@ export async function signUpCustomer(
   // A real user who mistyped once or twice has plenty of headroom;
   // abuse scripts creating spam accounts hit the wall quickly.
   const rlKey = emailRateLimitKey(parsed.data.email);
-  const rl = checkRateLimit({
+  const rl = await checkRateLimit({
     key: `signUp:${rlKey}`,
     max: 3,
     windowMs: 60 * 60 * 1000, // 1 hour
@@ -141,7 +141,7 @@ export async function signIn(
   // legitimate user who's forgotten their password but catches any
   // automated stuffing run.
   const rlKey = emailRateLimitKey(parsed.data.email);
-  const rl = checkRateLimit({
+  const rl = await checkRateLimit({
     key: `signIn:${rlKey}`,
     max: 5,
     windowMs: 15 * 60 * 1000, // 15 min
@@ -208,7 +208,7 @@ export async function requestPasswordReset(
   // over-limit calls rather than returning an error so the abuse signal
   // stays server-side and the UX for the real user is unchanged.
   const rlKey = emailRateLimitKey(parsed.data.email);
-  const rl = checkRateLimit({
+  const rl = await checkRateLimit({
     key: `passwordReset:${rlKey}`,
     max: 3,
     windowMs: 15 * 60 * 1000, // 15 min
@@ -271,12 +271,8 @@ export async function resetPassword(
 export async function updatePassword(
   formData: Record<string, unknown>,
 ): Promise<ActionResult> {
-  let current;
-  try {
-    current = await requireUser();
-  } catch {
-    return { success: false, error: 'Unauthorized' };
-  }
+  const current = await requireUser().catch(() => null);
+  if (!current) return { success: false, error: 'Unauthorized' };
 
   const parsed = updatePasswordSchema.safeParse(formData);
   if (!parsed.success) {
@@ -342,7 +338,7 @@ export async function resendVerificationEmail(
     return { success: false, error: 'Email is required.' };
   }
 
-  const rl = checkRateLimit({
+  const rl = await checkRateLimit({
     key: `resendVerify:${normalisedEmail}`,
     max: 3,
     windowMs: 10 * 60 * 1000, // 10 min

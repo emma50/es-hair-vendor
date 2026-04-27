@@ -20,12 +20,8 @@ import type { ActionResult } from '@/types';
 export async function updateProfile(
   formData: Record<string, unknown>,
 ): Promise<ActionResult> {
-  let current;
-  try {
-    current = await requireUser();
-  } catch {
-    return { success: false, error: 'Unauthorized' };
-  }
+  const current = await requireUser().catch(() => null);
+  if (!current) return { success: false, error: 'Unauthorized' };
 
   const parsed = updateProfileSchema.safeParse(formData);
   if (!parsed.success) {

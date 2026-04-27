@@ -4,6 +4,12 @@ import { verifyWebhookSignature, verifyTransaction } from '@/lib/paystack';
 import { prisma } from '@/lib/prisma';
 import { logServerError, logServerWarn } from '@/lib/log';
 
+// Pin Node runtime — this handler uses Prisma (Postgres driver) and
+// node:crypto's `timingSafeEqual` (via verifyWebhookSignature). Both
+// are unavailable on the Edge runtime; if Next ever flips its default
+// the webhook would silently 500 and Paystack retries would pile up.
+export const runtime = 'nodejs';
+
 /**
  * Paystack webhook handler.
  *

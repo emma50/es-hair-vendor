@@ -43,11 +43,15 @@ describe('verifyTransaction', () => {
 
     expect(fetch).toHaveBeenCalledWith(
       'https://api.paystack.co/transaction/verify/ref_123',
-      {
+      // The call also passes an `AbortSignal.timeout(8s)` to bound a
+      // hung Paystack response — match it loosely so this test is
+      // about the URL + auth header, not the timeout shape.
+      expect.objectContaining({
         headers: {
           Authorization: `Bearer ${TEST_SECRET}`,
         },
-      },
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 
@@ -137,15 +141,20 @@ describe('verifyWebhookSignature - extended', () => {
     expect(verifyWebhookSignature(largeBody, signature)).toBe(true);
   });
 
-  it('is case-sensitive for signature comparison', async () => {
+  it('accepts equivalent uppercase hex signatures (Buffer.from is case-insensitive)', async () => {
     const verifyWebhookSignature = await loadModule(TEST_SECRET);
     const body = '{"event":"charge.success"}';
     const signature = createHmac('sha512', TEST_SECRET)
       .update(body)
       .digest('hex');
     const upperSignature = signature.toUpperCase();
-    // SHA-512 hex digest is lowercase, so uppercase should fail
-    expect(verifyWebhookSignature(body, upperSignature)).toBe(false);
+    // Both `Buffer.from(lowercaseHex, 'hex')` and the uppercase form
+    // decode to the same bytes — `timingSafeEqual` then sees identical
+    // buffers and returns true. Paystack always sends lowercase, but
+    // accepting either case is harmless and matches what the
+    // underlying primitive does. This test pins that behaviour so a
+    // future "tighten to lowercase only" change is a deliberate one.
+    expect(verifyWebhookSignature(body, upperSignature)).toBe(true);
   });
 
   it('returns false for empty body with valid secret', async () => {

@@ -222,9 +222,17 @@ export function CheckoutClient({
             );
           },
           onError: (err) => {
-            if (process.env.NODE_ENV !== 'production') {
-              console.error('Paystack transaction error', err);
-            }
+            // Log in every environment — production payment errors
+            // leave no trace otherwise, and a customer report has
+            // nothing for us to debug from.
+            console.error('Paystack transaction error', err);
+            // Release the held stock immediately. Without this, a
+            // network blip / popup-blocker / browser hiccup leaves the
+            // PENDING order with stock decremented until the cron
+            // sweeps it ~45 min later — long enough that the customer
+            // hitting "Pay" again sees their own previous attempt as
+            // "out of stock".
+            void cancelPendingOrder(accessToken).catch(() => {});
             toast(
               err.message ?? 'Payment could not be completed.',
               'error',

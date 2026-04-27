@@ -3,6 +3,10 @@ import { requireAdmin } from '@/lib/auth/require-admin';
 import { generateUploadSignature } from '@/lib/cloudinary';
 import { logServerError } from '@/lib/log';
 
+// Pin Node runtime — Cloudinary's Node SDK + Prisma (transitively via
+// requireAdmin) are not Edge-compatible.
+export const runtime = 'nodejs';
+
 /**
  * Admin-only Cloudinary signature endpoint.
  *
@@ -73,6 +77,11 @@ export async function POST(req: Request) {
   const filtered: Record<string, string> = {};
   for (const [key, value] of Object.entries(rawParams)) {
     if (!ALLOWED_PARAMS.has(key)) continue;
+    // Timestamp is set server-side below — ignore client-provided value.
+    // Cloudinary rejects signatures whose timestamp is more than 1 hour
+    // off; trusting the client's clock means a stale signature could be
+    // replayed long after the admin's session ended.
+    if (key === 'timestamp') continue;
     if (typeof value !== 'string' && typeof value !== 'number') {
       return NextResponse.json(
         { error: `Invalid value for ${key}` },
@@ -81,6 +90,7 @@ export async function POST(req: Request) {
     }
     filtered[key] = String(value);
   }
+  filtered.timestamp = String(Math.floor(Date.now() / 1000));
 
   // Confine uploads to the product folder. Public IDs, when explicitly
   // set, must live inside that same prefix so a client can't use

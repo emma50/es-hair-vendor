@@ -24,33 +24,22 @@ function paystackEnvOf(key: string | undefined): 'test' | 'live' | null {
 
 // Run once at module load. We DON'T throw — throwing here would take
 // the Next.js server down and we still want local dev to boot without
-// keys configured. Logging + logServerError on mismatch is the right
-// signal for ops.
+// keys configured. Logging once per worker is the right signal for ops;
+// a one-line summary keeps cold-start log noise on Vercel manageable.
 (() => {
   const secret = process.env.PAYSTACK_SECRET_KEY;
   const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
   const secretEnv = paystackEnvOf(secret);
   const publicEnv = paystackEnvOf(publicKey);
 
-  if (secret && !secretEnv) {
-    console.error(
-      '[paystack] PAYSTACK_SECRET_KEY does not start with sk_test_ or sk_live_ — ' +
-        'the key is malformed. Webhook verification and REST calls will fail.',
-    );
-  }
-  if (publicKey && !publicEnv) {
-    console.error(
-      '[paystack] NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY does not start with pk_test_ ' +
-        'or pk_live_ — the key is malformed. Inline.js checkout will fail.',
-    );
-  }
+  const problems: string[] = [];
+  if (secret && !secretEnv) problems.push('secret key malformed');
+  if (publicKey && !publicEnv) problems.push('public key malformed');
   if (secretEnv && publicEnv && secretEnv !== publicEnv) {
-    console.error(
-      `[paystack] KEY ENVIRONMENT MISMATCH — secret=${secretEnv}, public=${publicEnv}. ` +
-        'Payments will silently fail: the popup will charge the ' +
-        `${publicEnv} account, but the webhook signed with the ${secretEnv} ` +
-        'secret will never match. Fix both keys before launch.',
-    );
+    problems.push(`env mismatch (secret=${secretEnv}, public=${publicEnv})`);
+  }
+  if (problems.length > 0) {
+    console.error(`[paystack] config: ${problems.join('; ')}`);
   }
 })();
 
@@ -105,6 +94,13 @@ export interface PaystackVerifyResponse {
   };
 }
 
+/**
+ * Default per-call timeout for Paystack REST. The serverless function
+ * timeout is 60s; we cap each upstream request well below that so a
+ * stuck Paystack endpoint can't burn the whole invocation.
+ */
+const PAYSTACK_TIMEOUT_MS = 8_000;
+
 export async function verifyTransaction(
   reference: string,
 ): Promise<PaystackVerifyResponse> {
@@ -117,6 +113,7 @@ export async function verifyTransaction(
       headers: {
         Authorization: `Bearer ${secret}`,
       },
+      signal: AbortSignal.timeout(PAYSTACK_TIMEOUT_MS),
     },
   );
 
@@ -175,6 +172,7 @@ export async function refundTransaction(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(PAYSTACK_TIMEOUT_MS),
   });
 
   // 400 from Paystack usually means "already fully refunded" or

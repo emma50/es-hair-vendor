@@ -57,8 +57,33 @@ export type VariantSeedInput = Omit<Partial<ProductVariant>, 'price'> & {
   price?: number;
 };
 
+/**
+ * Generate a Prisma-CUID-shaped id for the fake DB. Real Prisma uses
+ * `@default(cuid())` for every primary key in this schema, and the
+ * server actions validate cart line items via Zod's `.cuid()` matcher.
+ * The previous `${prefix}_${random}` scheme failed that check (the
+ * format isn't CUID-shaped) and made checkout actions reject every
+ * fake product. CUID classic = "c" + 24 lowercase alphanumerics.
+ *
+ * `prefix` is preserved as a leading marker for grep-ability in test
+ * failures — the `c…` part still satisfies the validator because
+ * we cap the alphabet to lowercase letters/digits and pad to length.
+ */
 function makeId(prefix: string) {
-  return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let body = '';
+  // Mix in a short prefix tag (lowercase, alpha-only) so the prefix
+  // is searchable but doesn't break CUID character-class rules.
+  const tag = prefix
+    .toLowerCase()
+    .replace(/[^a-z]/g, '')
+    .slice(0, 4)
+    .padEnd(4, 'a');
+  body += tag;
+  while (body.length < 24) {
+    body += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return `c${body}`;
 }
 
 /** In-memory DB shared across a single test's run. */
@@ -510,6 +535,48 @@ export function makePrismaMock(fake: FakeDB) {
   const productVariant = {
     findUnique: async ({ where }: { where: { id: string } }) =>
       db.productVariants.get(where.id) ?? null,
+    findMany: async ({
+      where,
+      select,
+    }: {
+      where?: { productId?: string; id?: { in?: string[] } };
+      select?: { id?: boolean };
+    } = {}) => {
+      const rows: ProductVariant[] = [];
+      for (const v of db.productVariants.values()) {
+        if (where?.productId && v.productId !== where.productId) continue;
+        if (where?.id?.in && !where.id.in.includes(v.id)) continue;
+        rows.push(v);
+      }
+      if (select) {
+        return rows.map((r) => {
+          const out: Record<string, unknown> = {};
+          for (const [k, want] of Object.entries(select)) {
+            if (want) out[k] = (r as unknown as Record<string, unknown>)[k];
+          }
+          return out;
+        });
+      }
+      return rows;
+    },
+    create: async ({ data }: { data: Partial<ProductVariant> }) => {
+      const id = data.id ?? makeId('var');
+      const v: ProductVariant = {
+        id,
+        productId: data.productId!,
+        name: data.name!,
+        label: data.label!,
+        price: data.price!,
+        stockQuantity: data.stockQuantity ?? 0,
+        sku: data.sku ?? null,
+        isActive: data.isActive ?? true,
+        metadata: data.metadata ?? null,
+      };
+      db.productVariants.set(id, v);
+      const prod = db.products.get(v.productId);
+      if (prod) prod.variants.push(v);
+      return v;
+    },
     createMany: async ({ data }: { data: Partial<ProductVariant>[] }) => {
       for (const d of data) {
         const vid = d.id ?? makeId('var');
@@ -530,17 +597,19 @@ export function makePrismaMock(fake: FakeDB) {
       }
       return { count: data.length };
     },
-    deleteMany: async ({ where }: { where: { productId?: string } }) => {
+    deleteMany: async ({
+      where,
+    }: {
+      where: { productId?: string; id?: { in?: string[] } };
+    }) => {
       let count = 0;
       for (const [id, v] of db.productVariants) {
         if (where.productId && v.productId !== where.productId) continue;
+        if (where.id?.in && !where.id.in.includes(id)) continue;
         db.productVariants.delete(id);
+        const prod = db.products.get(v.productId);
+        if (prod) prod.variants = prod.variants.filter((x) => x.id !== id);
         count++;
-      }
-      // Also drop from the product.variants arrays
-      if (where.productId) {
-        const prod = db.products.get(where.productId);
-        if (prod) prod.variants = [];
       }
       return { count };
     },
@@ -548,12 +617,27 @@ export function makePrismaMock(fake: FakeDB) {
       where,
       data,
     }: {
-      where: { id?: string; stockQuantity?: { gte?: number } };
-      data: { stockQuantity?: { decrement?: number; increment?: number } };
+      where: {
+        id?: string | { in?: string[] };
+        productId?: string;
+        stockQuantity?: { gte?: number };
+      };
+      data: {
+        stockQuantity?: { decrement?: number; increment?: number };
+        isActive?: boolean;
+      };
     }) => {
       let count = 0;
       for (const v of db.productVariants.values()) {
-        if (where.id && v.id !== where.id) continue;
+        if (typeof where.id === 'string' && v.id !== where.id) continue;
+        if (
+          where.id &&
+          typeof where.id === 'object' &&
+          where.id.in &&
+          !where.id.in.includes(v.id)
+        )
+          continue;
+        if (where.productId && v.productId !== where.productId) continue;
         if (
           where.stockQuantity?.gte !== undefined &&
           v.stockQuantity < where.stockQuantity.gte
@@ -564,6 +648,9 @@ export function makePrismaMock(fake: FakeDB) {
         }
         if (data.stockQuantity?.increment !== undefined) {
           v.stockQuantity += data.stockQuantity.increment;
+        }
+        if (data.isActive !== undefined) {
+          v.isActive = data.isActive;
         }
         count++;
       }
@@ -627,9 +714,19 @@ export function makePrismaMock(fake: FakeDB) {
         total: data.total!,
         currency: data.currency ?? 'NGN',
         paymentReference: data.paymentReference ?? null,
+        paystackTransactionId: data.paystackTransactionId ?? null,
         paymentStatus: data.paymentStatus ?? null,
         notes: data.notes ?? null,
         adminNotes: data.adminNotes ?? null,
+        accessTokenExpiresAt: data.accessTokenExpiresAt ?? null,
+        abandonedAt: data.abandonedAt ?? null,
+        // Prisma schema declares `stockReleased Boolean @default(true)`.
+        // The default has to be applied here too — without it the
+        // freshly-created Order has `stockReleased: undefined`, which
+        // makes `!order.stockReleased` truthy and trips the
+        // "shouldReclaimStock" branch in updateOrderStatus on the next
+        // status transition (decrementing stock a second time).
+        stockReleased: data.stockReleased ?? true,
         createdAt: now,
         updatedAt: now,
         items: [] as OrderItem[],
@@ -876,18 +973,82 @@ export function makePrismaMock(fake: FakeDB) {
         }
         return { count: data.length };
       },
-      deleteMany: async ({ where }: { where: { productId?: string } }) => {
+      deleteMany: async ({
+        where,
+      }: {
+        where: { productId?: string; id?: { in?: string[] } };
+      }) => {
         let count = 0;
         for (const [id, img] of db.productImages) {
           if (where.productId && img.productId !== where.productId) continue;
+          if (where.id?.in && !where.id.in.includes(id)) continue;
           db.productImages.delete(id);
+          // Also remove from any product.images array.
+          const prod = db.products.get(img.productId);
+          if (prod) {
+            prod.images = prod.images.filter((i) => i.id !== id);
+          }
           count++;
         }
-        if (where.productId) {
+        if (where.productId && !where.id) {
           const prod = db.products.get(where.productId);
           if (prod) prod.images = [];
         }
         return { count };
+      },
+      findMany: async ({
+        where,
+        select,
+      }: {
+        where?: { productId?: string };
+        select?: { id?: boolean };
+      } = {}) => {
+        const rows: ProductImage[] = [];
+        for (const img of db.productImages.values()) {
+          if (where?.productId && img.productId !== where.productId) continue;
+          rows.push(img);
+        }
+        if (select) {
+          return rows.map((r) => {
+            const out: Record<string, unknown> = {};
+            for (const [k, want] of Object.entries(select)) {
+              if (want) out[k] = (r as unknown as Record<string, unknown>)[k];
+            }
+            return out;
+          });
+        }
+        return rows;
+      },
+      update: async ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Partial<ProductImage>;
+      }) => {
+        const img = db.productImages.get(where.id);
+        if (!img) throw new Error('Not found');
+        Object.assign(img, data);
+        // Mirror into the product's images array (same object ref).
+        return img;
+      },
+      create: async ({ data }: { data: Partial<ProductImage> }) => {
+        const id = data.id ?? makeId('img');
+        const img: ProductImage = {
+          id,
+          productId: data.productId!,
+          url: data.url!,
+          publicId: data.publicId!,
+          alt: data.alt ?? null,
+          width: data.width ?? null,
+          height: data.height ?? null,
+          sortOrder: data.sortOrder ?? 0,
+          isPrimary: data.isPrimary ?? false,
+        };
+        db.productImages.set(id, img);
+        const prod = db.products.get(img.productId);
+        if (prod) prod.images.push(img);
+        return img;
       },
     },
     order,

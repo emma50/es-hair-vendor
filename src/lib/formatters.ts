@@ -1,3 +1,5 @@
+import { lagosParts } from '@/lib/time';
+
 const nairaFormatter = new Intl.NumberFormat('en-NG', {
   style: 'currency',
   currency: 'NGN',
@@ -31,9 +33,13 @@ export function formatDateTime(date: Date | string): string {
 }
 
 export function formatOrderNumber(date: Date, count: number): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+  // Use the Lagos-local Y/M/D rather than the server's local time
+  // (which is UTC on Vercel). Without this, orders placed between
+  // 00:00 and 01:00 Lagos time get yesterday's date stamp.
+  const { year, month, day } = lagosParts(date);
+  const y = String(year);
+  const m = String(month).padStart(2, '0');
+  const d = String(day).padStart(2, '0');
   const n = String(count).padStart(4, '0');
   return `ESH-${y}${m}${d}-${n}`;
 }

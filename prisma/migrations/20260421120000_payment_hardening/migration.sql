@@ -14,9 +14,10 @@
 --    webhook deliveries, keyed on the event id (at-least-once delivery).
 
 -- ---------- 1. OrderStatus enum expansion ----------
--- Postgres enum values are added with ALTER TYPE. `IF NOT EXISTS`
--- makes the migration idempotent against a partially-applied state.
-ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'DISPUTED';
+-- Moved to its own migration (20260421115900_dispute_enum_value) so the
+-- ALTER TYPE commits before this migration runs. `ALTER TYPE … ADD
+-- VALUE` is unsafe to use in the same transaction as statements that
+-- reference the new label.
 
 -- ---------- 2-5. Order columns ----------
 ALTER TABLE "Order"

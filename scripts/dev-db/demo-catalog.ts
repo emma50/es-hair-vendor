@@ -749,8 +749,10 @@ async function main() {
       [
         {
           productId:
-            allProducts.find((p) => p.slug === 'body-wave-full-lace-wig')?.id ||
-            allProducts[4].id,
+            allProducts.find(
+              (p: (typeof allProducts)[number]) =>
+                p.slug === 'body-wave-full-lace-wig',
+            )?.id || allProducts[4].id,
           name: 'Body Wave Full Lace Wig',
           variantName: 'Medium (22")',
           price: 120000,

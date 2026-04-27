@@ -16,6 +16,7 @@ import {
 import { refundTransaction } from '@/lib/paystack';
 import { sweepAbandonedPendingOrders } from '@/lib/orders/abandoned';
 import { formatOrderNumber } from '@/lib/formatters';
+import { lagosStartOfDay } from '@/lib/time';
 import {
   canTransition,
   holdsStock,
@@ -228,8 +229,10 @@ export async function createOrder(
     // second insert would hit the `orderNumber` unique constraint. Retry
     // on P2002 with a fresh count so parallel checkouts don't fail for
     // customers. 5 attempts is plenty for realistic traffic.
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Lagos midnight, not server-local (UTC) midnight, so the daily
+    // order-number sequence rolls over at 00:00 Lagos rather than 1
+    // AM Lagos.
+    const today = lagosStartOfDay();
 
     let orderNumber = '';
     let attempt = 0;
@@ -340,6 +343,18 @@ export async function createOrder(
       path: '/',
       maxAge: 60 * 60 * 24, // 24h — enough time for post-payment redirects
     });
+
+    // Bust the storefront's ISR cache so the stock counts on the home
+    // page (revalidate=3600) and product pages (revalidate=1800) reflect
+    // the just-decremented inventory. Without this, a customer who buys
+    // the last unit leaves a "5 in stock" lie up for ~30 minutes, and
+    // the next visitor's checkout fails the server-side stock guard.
+    revalidatePath('/');
+    revalidatePath('/products');
+    for (const item of orderItems) {
+      const slug = productMap.get(item.productId)?.slug;
+      if (slug) revalidatePath(`/products/${slug}`);
+    }
 
     return {
       success: true,
@@ -646,14 +661,12 @@ export async function refundOrder(
       };
     }
 
-    // Call Paystack's refund API. Amount is in kobo; omitting it
-    // defaults to a full refund which is the only flow we expose from
-    // the UI right now (partial refunds are deferred).
-    const totalKobo = Math.round(Number(order.total) * 100);
-    await refundTransaction(transactionTarget, totalKobo, parsed.data.reason);
-
-    // Mark the refund as in-flight. The `refund.processed` webhook
-    // owns the state transition + stock restock.
+    // Mark the refund as in-flight FIRST. If we called Paystack first
+    // and our DB update failed afterwards, the refund would be live at
+    // Paystack while admin UI still showed "Refund" as clickable —
+    // admin double-clicks, second Paystack call rejects with "already
+    // refunded". Writing the lock first means a Paystack failure is
+    // recoverable: we revert the field below.
     const notePrefix = order.adminNotes ? `${order.adminNotes}\n\n` : '';
     const stamp = new Date().toISOString().slice(0, 10);
     const newNote = `${notePrefix}[${stamp}] Refund initiated: ${parsed.data.reason}`;
@@ -665,6 +678,23 @@ export async function refundOrder(
         adminNotes: newNote.slice(0, 4000),
       },
     });
+
+    // Call Paystack's refund API. Amount is in kobo; omitting it
+    // defaults to a full refund which is the only flow we expose from
+    // the UI right now (partial refunds are deferred).
+    const totalKobo = Math.round(Number(order.total) * 100);
+    try {
+      await refundTransaction(transactionTarget, totalKobo, parsed.data.reason);
+    } catch (paystackError) {
+      // Revert the in-flight lock so admin can retry. We don't undo
+      // the adminNotes line — keeping the audit trail of "we tried"
+      // is intentional.
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: order.paymentStatus },
+      });
+      throw paystackError;
+    }
 
     revalidatePath(`/admin/orders/${orderId}`);
     revalidatePath('/admin/orders');

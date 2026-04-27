@@ -72,78 +72,96 @@ export async function sweepAbandonedPendingOrders(
     errored: 0,
   };
 
-  for (const order of candidates) {
-    if (!order.paymentReference) {
-      result.errored += 1;
-      logServerWarn(
-        'orders.sweepAbandoned',
-        `order ${order.orderNumber} is PAYSTACK but has no paymentReference`,
-      );
-      continue;
-    }
-
-    try {
-      const verified = await verifyTransaction(order.paymentReference);
-      const apiStatus = verified.data?.status ?? '';
-      const apiKobo = verified.data?.amount ?? -1;
-      const apiCurrency = verified.data?.currency ?? '';
-      const expectedKobo = Math.round(Number(order.total) * 100);
-
-      if (
-        apiStatus === 'success' &&
-        apiKobo === expectedKobo &&
-        apiCurrency === 'NGN'
-      ) {
-        // The charge actually went through — promote, don't cancel.
-        // Same pattern as the reconcile helper.
-        await prisma.order.updateMany({
-          where: { id: order.id, status: 'PENDING' },
-          data: { status: 'CONFIRMED', paymentStatus: 'paid' },
-        });
-        result.promoted += 1;
-        continue;
-      }
-
-      // Not a successful charge (Paystack says failed/abandoned/
-      // unfindable, or the amount doesn't match — treat all as
-      // "customer never paid"). Credit stock + mark abandoned.
-      await prisma.$transaction(async (tx) => {
-        if (order.stockReleased) {
-          for (const item of order.items) {
-            if (item.variantId) {
-              await tx.productVariant.updateMany({
-                where: { id: item.variantId },
-                data: { stockQuantity: { increment: item.quantity } },
-              });
-            } else {
-              await tx.product.updateMany({
-                where: { id: item.productId },
-                data: { stockQuantity: { increment: item.quantity } },
-              });
-            }
-          }
-        }
-        await tx.order.updateMany({
-          where: { id: order.id, status: 'PENDING' },
-          data: {
-            status: 'CANCELLED',
-            paymentStatus: 'abandoned',
-            stockReleased: false,
-            abandonedAt: new Date(),
-          },
-        });
-      });
-      result.cancelled += 1;
-    } catch (error) {
-      // A single failing row shouldn't poison the rest of the sweep.
-      // Log + continue; next sweep retries.
-      result.errored += 1;
-      logServerError('orders.sweepAbandoned.row', {
-        orderNumber: order.orderNumber,
-        error: error instanceof Error ? error.message : String(error),
-      });
+  // Process in parallel chunks. Sequential round-trips of 200 orders ×
+  // ~300 ms each easily blow past Vercel's function timeout. Cap at 8
+  // concurrent so we don't hammer Paystack or our own pgbouncer.
+  const CONCURRENCY = 8;
+  for (let i = 0; i < candidates.length; i += CONCURRENCY) {
+    const chunk = candidates.slice(i, i + CONCURRENCY);
+    const outcomes = await Promise.all(
+      chunk.map((order) => processOne(order)),
+    );
+    for (const outcome of outcomes) {
+      if (outcome === 'promoted') result.promoted += 1;
+      else if (outcome === 'cancelled') result.cancelled += 1;
+      else result.errored += 1;
     }
   }
 
   return result;
+}
+
+type ProcessOutcome = 'promoted' | 'cancelled' | 'errored';
+
+async function processOne(
+  order: {
+    id: string;
+    orderNumber: string;
+    total: import('@prisma/client').Prisma.Decimal;
+    paymentReference: string | null;
+    stockReleased: boolean;
+    items: { productId: string; variantId: string | null; quantity: number }[];
+  },
+): Promise<ProcessOutcome> {
+  if (!order.paymentReference) {
+    logServerWarn(
+      'orders.sweepAbandoned',
+      `order ${order.orderNumber} is PAYSTACK but has no paymentReference`,
+    );
+    return 'errored';
+  }
+
+  try {
+    const verified = await verifyTransaction(order.paymentReference);
+    const apiStatus = verified.data?.status ?? '';
+    const apiKobo = verified.data?.amount ?? -1;
+    const apiCurrency = verified.data?.currency ?? '';
+    const expectedKobo = Math.round(Number(order.total) * 100);
+
+    if (
+      apiStatus === 'success' &&
+      apiKobo === expectedKobo &&
+      apiCurrency === 'NGN'
+    ) {
+      await prisma.order.updateMany({
+        where: { id: order.id, status: 'PENDING' },
+        data: { status: 'CONFIRMED', paymentStatus: 'paid' },
+      });
+      return 'promoted';
+    }
+
+    await prisma.$transaction(async (tx) => {
+      if (order.stockReleased) {
+        for (const item of order.items) {
+          if (item.variantId) {
+            await tx.productVariant.updateMany({
+              where: { id: item.variantId },
+              data: { stockQuantity: { increment: item.quantity } },
+            });
+          } else {
+            await tx.product.updateMany({
+              where: { id: item.productId },
+              data: { stockQuantity: { increment: item.quantity } },
+            });
+          }
+        }
+      }
+      await tx.order.updateMany({
+        where: { id: order.id, status: 'PENDING' },
+        data: {
+          status: 'CANCELLED',
+          paymentStatus: 'abandoned',
+          stockReleased: false,
+          abandonedAt: new Date(),
+        },
+      });
+    });
+    return 'cancelled';
+  } catch (error) {
+    logServerError('orders.sweepAbandoned.row', {
+      orderNumber: order.orderNumber,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return 'errored';
+  }
 }
