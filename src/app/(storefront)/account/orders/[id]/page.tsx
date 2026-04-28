@@ -36,7 +36,14 @@ export default async function OrderDetailPage({
         },
       },
     })
-    .catch((error: unknown) => {
+    // The `: never` return annotation is load-bearing: without it TS
+    // infers the handler's return as `void`, which widens the awaited
+    // value to `OrderType | void` and collapses `order.items` to
+    // `any`. Vercel's `next build` typecheck catches that; local
+    // `tsc --noEmit` doesn't always. With `never`, the handler is
+    // pinned as "produces no value, only throws" and `order` keeps
+    // the original `findFirst` return type.
+    .catch((error: unknown): never => {
       logServerError('accountOrderDetail', error);
       // Re-throw so Next.js renders the nearest error.tsx (retry UI)
       // rather than silently 404ing on a transient failure.
