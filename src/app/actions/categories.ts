@@ -3,10 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import {
-  categoryFormSchema,
-  categoryReorderSchema,
-} from '@/lib/validations';
+import { categoryFormSchema, categoryReorderSchema } from '@/lib/validations';
 import { slugify } from '@/lib/formatters';
 import { logServerError } from '@/lib/log';
 import type { ActionResult } from '@/types';

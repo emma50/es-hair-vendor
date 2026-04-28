@@ -87,10 +87,7 @@ export function CategoryList({ categories: initial }: CategoryListProps) {
         toast(result.error, 'error');
         return;
       }
-      toast(
-        nextActive ? 'Category activated.' : 'Category hidden.',
-        'success',
-      );
+      toast(nextActive ? 'Category activated.' : 'Category hidden.', 'success');
       router.refresh();
     });
   }
@@ -179,139 +176,137 @@ export function CategoryList({ categories: initial }: CategoryListProps) {
 
   return (
     <>
-    <ul className="space-y-3">
-      {items.map((cat, index) => {
-        const isEditing = editingId === cat.id;
-        return (
-          <li
-            key={cat.id}
-            className="border-slate bg-charcoal flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="flex flex-1 items-center gap-2">
-              <div className="flex flex-col">
-                <button
-                  type="button"
-                  onClick={() => move(cat.id, -1)}
-                  disabled={isPending || index === 0}
-                  aria-label={`Move ${cat.name} up`}
-                  className="text-silver hover:text-pearl disabled:opacity-30"
-                >
-                  <ChevronUp className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => move(cat.id, 1)}
-                  disabled={isPending || index === items.length - 1}
-                  aria-label={`Move ${cat.name} down`}
-                  className="text-silver hover:text-pearl disabled:opacity-30"
-                >
-                  <ChevronDown className="h-4 w-4" />
-                </button>
-              </div>
-              {isEditing ? (
-                <div className="flex flex-1 flex-col gap-2 sm:flex-row">
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    aria-label="Category name"
-                  />
-                  <Input
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    placeholder="Description"
-                    aria-label="Category description"
-                  />
+      <ul className="space-y-3">
+        {items.map((cat, index) => {
+          const isEditing = editingId === cat.id;
+          return (
+            <li
+              key={cat.id}
+              className="border-slate bg-charcoal flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="flex flex-1 items-center gap-2">
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => move(cat.id, -1)}
+                    disabled={isPending || index === 0}
+                    aria-label={`Move ${cat.name} up`}
+                    className="text-silver hover:text-pearl disabled:opacity-30"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(cat.id, 1)}
+                    disabled={isPending || index === items.length - 1}
+                    aria-label={`Move ${cat.name} down`}
+                    className="text-silver hover:text-pearl disabled:opacity-30"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
                 </div>
-              ) : (
-                <div className="min-w-0">
-                  <p className="text-pearl font-medium">{cat.name}</p>
-                  {cat.description && (
-                    <p className="text-muted truncate text-sm">
-                      {cat.description}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge>
-                {cat._count.products} product
-                {cat._count.products === 1 ? '' : 's'}
-              </Badge>
-              <Badge variant={cat.isActive ? 'success' : 'default'}>
-                {cat.isActive ? 'Active' : 'Hidden'}
-              </Badge>
-              {isEditing ? (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => saveEdit(cat.id)}
-                    disabled={isPending}
-                    aria-label="Save category"
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={cancelEdit}
-                    disabled={isPending}
-                    aria-label="Cancel edit"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => beginEdit(cat)}
-                    disabled={isPending}
-                    aria-label={`Edit ${cat.name}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => toggleActive(cat)}
-                    disabled={isPending}
-                    aria-label={
-                      cat.isActive
-                        ? `Hide ${cat.name}`
-                        : `Show ${cat.name}`
-                    }
-                  >
-                    {cat.isActive ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
+                {isEditing ? (
+                  <div className="flex flex-1 flex-col gap-2 sm:flex-row">
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      aria-label="Category name"
+                    />
+                    <Input
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Description"
+                      aria-label="Category description"
+                    />
+                  </div>
+                ) : (
+                  <div className="min-w-0">
+                    <p className="text-pearl font-medium">{cat.name}</p>
+                    {cat.description && (
+                      <p className="text-muted truncate text-sm">
+                        {cat.description}
+                      </p>
                     )}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDelete(cat)}
-                    disabled={isPending}
-                    aria-label={`Delete ${cat.name}`}
-                  >
-                    <Trash2 className="text-error/80 h-4 w-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-    {dialog}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge>
+                  {cat._count.products} product
+                  {cat._count.products === 1 ? '' : 's'}
+                </Badge>
+                <Badge variant={cat.isActive ? 'success' : 'default'}>
+                  {cat.isActive ? 'Active' : 'Hidden'}
+                </Badge>
+                {isEditing ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => saveEdit(cat.id)}
+                      disabled={isPending}
+                      aria-label="Save category"
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={cancelEdit}
+                      disabled={isPending}
+                      aria-label="Cancel edit"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => beginEdit(cat)}
+                      disabled={isPending}
+                      aria-label={`Edit ${cat.name}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => toggleActive(cat)}
+                      disabled={isPending}
+                      aria-label={
+                        cat.isActive ? `Hide ${cat.name}` : `Show ${cat.name}`
+                      }
+                    >
+                      {cat.isActive ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDelete(cat)}
+                      disabled={isPending}
+                      aria-label={`Delete ${cat.name}`}
+                    >
+                      <Trash2 className="text-error/80 h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {dialog}
     </>
   );
 }

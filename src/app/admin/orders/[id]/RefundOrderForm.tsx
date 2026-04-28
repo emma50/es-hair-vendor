@@ -55,8 +55,8 @@ export function RefundOrderForm({
           Refund in progress
         </h2>
         <p className="text-muted text-xs leading-relaxed">
-          Paystack is processing the refund. The order will flip to
-          REFUNDED automatically once Paystack confirms settlement.
+          Paystack is processing the refund. The order will flip to REFUNDED
+          automatically once Paystack confirms settlement.
         </p>
       </div>
     );
@@ -116,8 +116,8 @@ export function RefundOrderForm({
             maxLength={300}
           />
           <p id="refund-hint" className="text-muted mt-2 mb-3 text-xs">
-            Issues a full refund via Paystack. Stock is restored only
-            after Paystack confirms settlement (webhook).
+            Issues a full refund via Paystack. Stock is restored only after
+            Paystack confirms settlement (webhook).
           </p>
           <Button
             type="submit"

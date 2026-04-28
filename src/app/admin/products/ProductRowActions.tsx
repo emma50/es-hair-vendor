@@ -61,7 +61,10 @@ export function ProductRowActions({
 
   return (
     <div className="flex items-center gap-2">
-      <Link href={`/admin/products/${productId}`} aria-label={`Edit ${productName}`}>
+      <Link
+        href={`/admin/products/${productId}`}
+        aria-label={`Edit ${productName}`}
+      >
         <Button type="button" size="sm" variant="ghost" disabled={isPending}>
           <Pencil className="h-4 w-4" />
         </Button>

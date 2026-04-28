@@ -99,10 +99,9 @@ export function PendingConfirmationPoller({
   return (
     <div className="border-warning/30 bg-warning/5 mt-6 rounded-lg border px-4 py-3 text-left">
       <p className="text-silver text-xs leading-relaxed">
-        Paystack hasn&apos;t confirmed the payment yet. This is usually a
-        short delay, but if you were charged and your order still shows
-        pending after a few minutes, please get in touch so we can
-        reconcile it manually.
+        Paystack hasn&apos;t confirmed the payment yet. This is usually a short
+        delay, but if you were charged and your order still shows pending after
+        a few minutes, please get in touch so we can reconcile it manually.
       </p>
       <a
         href={whatsappHref}

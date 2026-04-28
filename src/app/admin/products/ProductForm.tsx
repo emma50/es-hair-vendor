@@ -99,27 +99,24 @@ export function ProductForm({ product, categories }: ProductFormProps) {
       })),
   );
 
-  const handleUploadSuccess = useCallback(
-    (result: unknown) => {
-      const info = (result as { info?: CloudinaryUploadInfo } | null)?.info;
-      if (!info?.secure_url || !info.public_id) return;
-      setImages((prev) => {
-        const hasPrimary = prev.some((p) => p.isPrimary);
-        const next: ImageRow = {
-          key: uid(),
-          url: info.secure_url!,
-          publicId: info.public_id!,
-          alt: info.original_filename,
-          width: info.width,
-          height: info.height,
-          sortOrder: prev.length,
-          isPrimary: !hasPrimary, // first image becomes primary by default
-        };
-        return [...prev, next];
-      });
-    },
-    [],
-  );
+  const handleUploadSuccess = useCallback((result: unknown) => {
+    const info = (result as { info?: CloudinaryUploadInfo } | null)?.info;
+    if (!info?.secure_url || !info.public_id) return;
+    setImages((prev) => {
+      const hasPrimary = prev.some((p) => p.isPrimary);
+      const next: ImageRow = {
+        key: uid(),
+        url: info.secure_url!,
+        publicId: info.public_id!,
+        alt: info.original_filename,
+        width: info.width,
+        height: info.height,
+        sortOrder: prev.length,
+        isPrimary: !hasPrimary, // first image becomes primary by default
+      };
+      return [...prev, next];
+    });
+  }, []);
 
   function removeImage(key: string) {
     setImages((prev) => {
@@ -135,9 +132,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
   }
 
   function markPrimary(key: string) {
-    setImages((prev) =>
-      prev.map((i) => ({ ...i, isPrimary: i.key === key })),
-    );
+    setImages((prev) => prev.map((i) => ({ ...i, isPrimary: i.key === key })));
   }
 
   function moveImage(key: string, direction: -1 | 1) {
@@ -214,7 +209,10 @@ export function ProductForm({ product, categories }: ProductFormProps) {
     // --- Client-side guard: each variant must have non-empty name, label, price
     for (const v of variants) {
       if (!v.name.trim() || !v.label.trim() || !(v.price > 0)) {
-        toast('Every variant needs a name, label, and positive price.', 'error');
+        toast(
+          'Every variant needs a name, label, and positive price.',
+          'error',
+        );
         return;
       }
     }
@@ -258,11 +256,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
             serializedImages,
             serializedVariants,
           )
-        : await createProduct(
-            formValues,
-            serializedImages,
-            serializedVariants,
-          );
+        : await createProduct(formValues, serializedImages, serializedVariants);
 
       if (!result.success) {
         toast(result.error, 'error');

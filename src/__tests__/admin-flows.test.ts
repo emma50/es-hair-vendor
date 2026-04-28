@@ -42,15 +42,12 @@ vi.mock('next/cache', () => ({
 }));
 
 const { signIn, signUpCustomer } = await import('@/app/actions/auth');
-const { createProduct, updateProduct, deleteProduct } = await import(
-  '@/app/actions/products'
-);
-const { createCategory, updateCategory } = await import(
-  '@/app/actions/categories'
-);
-const { createOrder, updateOrderStatus, updateOrderNotes } = await import(
-  '@/app/actions/orders'
-);
+const { createProduct, updateProduct, deleteProduct } =
+  await import('@/app/actions/products');
+const { createCategory, updateCategory } =
+  await import('@/app/actions/categories');
+const { createOrder, updateOrderStatus, updateOrderNotes } =
+  await import('@/app/actions/orders');
 const { updateStoreSettings } = await import('@/app/actions/settings');
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -288,9 +285,7 @@ describe('admin product CRUD', () => {
       categoryId: cat.id,
       name: 'Old Name',
       slug: 'old-name',
-      variants: [
-        { name: 'v1', label: '12"', price: 30000, stockQuantity: 5 },
-      ],
+      variants: [{ name: 'v1', label: '12"', price: 30000, stockQuantity: 5 }],
       images: [{ url: 'https://img.example/old.jpg', publicId: 'old' }],
     });
     const result = await updateProduct(
@@ -412,7 +407,9 @@ describe('admin order status transitions', () => {
   });
 
   it('returns Order not found for an unknown id', async () => {
-    const result = await updateOrderStatus('ghost-order', { status: 'SHIPPED' });
+    const result = await updateOrderStatus('ghost-order', {
+      status: 'SHIPPED',
+    });
     expect(result.success).toBe(false);
     if (result.success) return;
     expect(result.error).toMatch(/not found/i);

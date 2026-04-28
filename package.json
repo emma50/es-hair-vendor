@@ -9,11 +9,14 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma generate && next build",
+    "typecheck": "tsc --noEmit",
+    "build": "prisma generate && pnpm typecheck && next build",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm exec next build",
+    "verify:fast": "pnpm typecheck && pnpm lint && pnpm test",
     "db:generate": "prisma generate",
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -41,6 +44,14 @@
       "esbuild",
       "sharp",
       "unrs-resolver"
+    ]
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --max-warnings=0 --fix"
+    ],
+    "*.{js,jsx,mjs,cjs,json,md,css}": [
+      "prettier --write"
     ]
   },
   "dependencies": {
@@ -74,6 +85,7 @@
     "eslint": "^9.0.0",
     "eslint-config-next": "~15.5.0",
     "husky": "^9.0.0",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.0.0",
     "prettier-plugin-tailwindcss": "^0.6.0",
     "prisma": "~7.4.0",

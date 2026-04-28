@@ -1,6 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
+import { env } from '@/lib/env';
+
+// Validate every required env var at first import. In production this
+// throws — Vercel kills the deploy with a clear list of missing/
+// malformed vars instead of letting individual routes 500 at runtime.
+// In dev it logs but continues so partial setups still boot.
+env();
 
 /**
  * Prisma client wired to a pg pool that's safe for Vercel serverless.

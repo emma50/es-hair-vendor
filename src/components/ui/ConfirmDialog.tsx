@@ -1,11 +1,6 @@
 'use client';
 
-import {
-  useEffect,
-  useId,
-  useRef,
-  type ReactNode,
-} from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';

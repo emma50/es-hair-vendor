@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# Pre-commit: fast feedback only.
+# - lint-staged auto-fixes ESLint + Prettier on staged files (~1-3s).
+# - tsc on the whole project (~5-10s) catches type errors that aren't
+#   visible from a single staged file. We accept the cost here because
+#   missing them locally means catching them in Vercel build, which is
+#   the loop we're trying to break.
+#
+# If this is too slow on your machine, swap `pnpm typecheck` for the
+# `--incremental` build (uses tsbuildinfo cache) — already on by default
+# in this project's tsconfig.
+
+set -e
+
+echo "→ lint-staged (eslint --fix + prettier on staged files)"
+pnpm exec lint-staged
+
+echo "→ tsc --noEmit (full project)"
+pnpm typecheck

@@ -17,11 +17,7 @@ import { refundTransaction } from '@/lib/paystack';
 import { sweepAbandonedPendingOrders } from '@/lib/orders/abandoned';
 import { formatOrderNumber } from '@/lib/formatters';
 import { lagosStartOfDay } from '@/lib/time';
-import {
-  canTransition,
-  holdsStock,
-  type OrderStatus,
-} from '@/lib/order-state';
+import { canTransition, holdsStock, type OrderStatus } from '@/lib/order-state';
 import { logServerError } from '@/lib/log';
 import type { ActionResult } from '@/types';
 
@@ -264,7 +260,8 @@ export async function createOrder(
               subtotal,
               shippingCost,
               total,
-              paymentReference: channel === 'PAYSTACK' ? paymentReference : null,
+              paymentReference:
+                channel === 'PAYSTACK' ? paymentReference : null,
               items: { create: orderItems },
             },
           });
@@ -444,10 +441,8 @@ export async function updateOrderStatus(
     }
 
     const targetHoldsStock = holdsStock(target);
-    const shouldReleaseStock =
-      order.stockReleased && !targetHoldsStock; // active → CANCELLED/REFUNDED
-    const shouldReclaimStock =
-      !order.stockReleased && targetHoldsStock; // CANCELLED → active (blocked by state machine today)
+    const shouldReleaseStock = order.stockReleased && !targetHoldsStock; // active → CANCELLED/REFUNDED
+    const shouldReclaimStock = !order.stockReleased && targetHoldsStock; // CANCELLED → active (blocked by state machine today)
 
     await prisma.$transaction(async (tx) => {
       if (shouldReleaseStock) {
@@ -605,8 +600,7 @@ export async function refundOrder(
     return {
       success: false,
       error:
-        parsed.error.issues[0]?.message ??
-        'Please provide a refund reason.',
+        parsed.error.issues[0]?.message ?? 'Please provide a refund reason.',
       fieldErrors: parsed.error.flatten().fieldErrors,
     };
   }
@@ -702,7 +696,8 @@ export async function refundOrder(
   } catch (error) {
     logServerError('orders.refund', error);
     const message =
-      error instanceof Error && error.message.startsWith('Paystack refund failed:')
+      error instanceof Error &&
+      error.message.startsWith('Paystack refund failed:')
         ? error.message
         : 'Failed to initiate refund. Please try again or contact support.';
     return { success: false, error: message };
@@ -795,7 +790,14 @@ export async function cancelPendingOrder(
  */
 export async function adminSweepAbandonedOrders(
   olderThanMinutes = 30,
-): Promise<ActionResult<{ considered: number; cancelled: number; promoted: number; errored: number }>> {
+): Promise<
+  ActionResult<{
+    considered: number;
+    cancelled: number;
+    promoted: number;
+    errored: number;
+  }>
+> {
   try {
     await requireAdmin();
   } catch {
@@ -855,4 +857,3 @@ export async function getOrderStatusByToken(
     return { success: false, error: 'Could not refresh status.' };
   }
 }
-

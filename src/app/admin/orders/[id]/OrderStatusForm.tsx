@@ -98,60 +98,60 @@ export function OrderStatusForm({
 
   return (
     <>
-    <form
-      onSubmit={handleSubmit}
-      className="border-slate bg-charcoal rounded-lg border p-6"
-    >
-      <fieldset disabled={isPending} className="disabled:opacity-70">
-        <h2 className="font-display text-ivory mb-3 text-lg font-semibold">
-          Update Status
-        </h2>
-        <label htmlFor="order-status" className="sr-only">
-          Order status
-        </label>
-        <select
-          id="order-status"
-          name="status"
-          value={selected}
-          onChange={(e) => setSelected(e.target.value as OrderStatus)}
-          disabled={isPending || isTerminal}
-          aria-describedby="order-status-hint"
-          className="border-slate bg-graphite text-pearl focus:border-gold mb-3 h-10 w-full rounded-md border px-3 text-sm focus:outline-none disabled:opacity-60"
-        >
-          {selectable.map((s) => (
-            <option key={s} value={s}>
-              {ORDER_STATUS_LABELS[s] ?? s}
-            </option>
-          ))}
-        </select>
-        <p id="order-status-hint" className="text-muted mb-3 text-xs">
-          {isTerminal
-            ? 'This order is in a terminal state and cannot change.'
-            : 'Only transitions valid for the current status are shown.'}
-        </p>
-        <Button
-          type="submit"
-          isLoading={isPending}
-          disabled={unchanged || isTerminal}
-          size="sm"
-          className="w-full"
-        >
-          Update Status
-        </Button>
-      </fieldset>
-    </form>
-    <ConfirmDialog
-      open={confirmOpen}
-      onCancel={() => {
-        if (!isPending) setConfirmOpen(false);
-      }}
-      onConfirm={runUpdate}
-      title={`Mark this order as ${destructiveLabel}?`}
-      description={destructiveDescription}
-      confirmLabel={`Mark ${destructiveLabel}`}
-      variant="destructive"
-      isPending={isPending}
-    />
+      <form
+        onSubmit={handleSubmit}
+        className="border-slate bg-charcoal rounded-lg border p-6"
+      >
+        <fieldset disabled={isPending} className="disabled:opacity-70">
+          <h2 className="font-display text-ivory mb-3 text-lg font-semibold">
+            Update Status
+          </h2>
+          <label htmlFor="order-status" className="sr-only">
+            Order status
+          </label>
+          <select
+            id="order-status"
+            name="status"
+            value={selected}
+            onChange={(e) => setSelected(e.target.value as OrderStatus)}
+            disabled={isPending || isTerminal}
+            aria-describedby="order-status-hint"
+            className="border-slate bg-graphite text-pearl focus:border-gold mb-3 h-10 w-full rounded-md border px-3 text-sm focus:outline-none disabled:opacity-60"
+          >
+            {selectable.map((s) => (
+              <option key={s} value={s}>
+                {ORDER_STATUS_LABELS[s] ?? s}
+              </option>
+            ))}
+          </select>
+          <p id="order-status-hint" className="text-muted mb-3 text-xs">
+            {isTerminal
+              ? 'This order is in a terminal state and cannot change.'
+              : 'Only transitions valid for the current status are shown.'}
+          </p>
+          <Button
+            type="submit"
+            isLoading={isPending}
+            disabled={unchanged || isTerminal}
+            size="sm"
+            className="w-full"
+          >
+            Update Status
+          </Button>
+        </fieldset>
+      </form>
+      <ConfirmDialog
+        open={confirmOpen}
+        onCancel={() => {
+          if (!isPending) setConfirmOpen(false);
+        }}
+        onConfirm={runUpdate}
+        title={`Mark this order as ${destructiveLabel}?`}
+        description={destructiveDescription}
+        confirmLabel={`Mark ${destructiveLabel}`}
+        variant="destructive"
+        isPending={isPending}
+      />
     </>
   );
 }

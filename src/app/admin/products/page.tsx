@@ -212,9 +212,7 @@ export default async function AdminProductsPage({
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge
-                        variant={product.isActive ? 'success' : 'default'}
-                      >
+                      <Badge variant={product.isActive ? 'success' : 'default'}>
                         {product.isActive ? 'Active' : 'Hidden'}
                       </Badge>
                     </td>
@@ -234,10 +232,7 @@ export default async function AdminProductsPage({
       )}
 
       {(totalPages ?? 0) > 1 && (
-        <nav
-          aria-label="Pagination"
-          className="mt-4 flex justify-center gap-2"
-        >
+        <nav aria-label="Pagination" className="mt-4 flex justify-center gap-2">
           {Array.from({ length: totalPages! }, (_, i) => {
             const pageNum = i + 1;
             const query = buildQuery({

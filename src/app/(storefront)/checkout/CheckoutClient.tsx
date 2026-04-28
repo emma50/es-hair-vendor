@@ -134,10 +134,7 @@ export function CheckoutClient({
               'Set it in .env.local and restart the dev server.',
           );
         }
-        toast(
-          'Paystack is not configured. Please contact support.',
-          'error',
-        );
+        toast('Paystack is not configured. Please contact support.', 'error');
         return;
       }
 
@@ -216,10 +213,7 @@ export function CheckoutClient({
             // the server-side cleanup cron is the backstop, and we
             // never want the UI to block on this.
             void cancelPendingOrder(accessToken).catch(() => {});
-            toast(
-              'Payment was cancelled. Stock has been released.',
-              'warning',
-            );
+            toast('Payment was cancelled. Stock has been released.', 'warning');
           },
           onError: (err) => {
             // Log in every environment — production payment errors
@@ -233,10 +227,7 @@ export function CheckoutClient({
             // hitting "Pay" again sees their own previous attempt as
             // "out of stock".
             void cancelPendingOrder(accessToken).catch(() => {});
-            toast(
-              err.message ?? 'Payment could not be completed.',
-              'error',
-            );
+            toast(err.message ?? 'Payment could not be completed.', 'error');
           },
         });
       } catch (err) {

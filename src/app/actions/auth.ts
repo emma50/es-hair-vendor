@@ -333,7 +333,8 @@ export async function resendVerificationEmail(
   // NFC-normalise via the shared helper so Unicode variants
   // (composed vs decomposed é) collapse onto a single bucket and can't
   // sidestep the per-address quota.
-  const normalisedEmail = typeof email === 'string' ? emailRateLimitKey(email) : '';
+  const normalisedEmail =
+    typeof email === 'string' ? emailRateLimitKey(email) : '';
   if (!normalisedEmail) {
     return { success: false, error: 'Email is required.' };
   }

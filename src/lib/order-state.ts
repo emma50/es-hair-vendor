@@ -74,7 +74,14 @@ export function holdsStock(status: OrderStatus): boolean {
  */
 const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   PENDING: ['PENDING', 'CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['CONFIRMED', 'PROCESSING', 'SHIPPED', 'CANCELLED', 'REFUNDED', 'DISPUTED'],
+  CONFIRMED: [
+    'CONFIRMED',
+    'PROCESSING',
+    'SHIPPED',
+    'CANCELLED',
+    'REFUNDED',
+    'DISPUTED',
+  ],
   PROCESSING: ['PROCESSING', 'SHIPPED', 'CANCELLED', 'REFUNDED', 'DISPUTED'],
   SHIPPED: ['SHIPPED', 'DELIVERED', 'DISPUTED'],
   DELIVERED: ['DELIVERED', 'REFUNDED', 'DISPUTED'],

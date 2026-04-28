@@ -176,9 +176,7 @@ function claimDedupKey(event: {
 function extractChargeReference(event: {
   data?: { reference?: string; transaction?: { reference?: string } };
 }): string | null {
-  return (
-    event.data?.reference ?? event.data?.transaction?.reference ?? null
-  );
+  return event.data?.reference ?? event.data?.transaction?.reference ?? null;
 }
 
 /**

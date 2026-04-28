@@ -13,8 +13,7 @@ export const metadata: Metadata = {
     default: 'Your Account',
     template: '%s · Your Account',
   },
-  description:
-    'Manage your orders, delivery details, and account preferences.',
+  description: 'Manage your orders, delivery details, and account preferences.',
   robots: { index: false, follow: false },
 };
 

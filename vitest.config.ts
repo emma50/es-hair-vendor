@@ -18,7 +18,10 @@ export default defineConfig({
       // module that uses `import 'server-only'` (rate-limit, queries,
       // orders helpers). Point it at an empty file: the test runner
       // is server-side anyway, so the guard is moot.
-      'server-only': path.resolve(__dirname, './src/__tests__/helpers/server-only-stub.ts'),
+      'server-only': path.resolve(
+        __dirname,
+        './src/__tests__/helpers/server-only-stub.ts',
+      ),
     },
   },
 });

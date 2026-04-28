@@ -123,9 +123,7 @@ export default async function AdminOrdersPage({
       {orders.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
-          title={
-            isFiltered ? 'No orders match your filters' : 'No orders yet'
-          }
+          title={isFiltered ? 'No orders match your filters' : 'No orders yet'}
           description={
             isFiltered
               ? search
@@ -194,10 +192,7 @@ export default async function AdminOrdersPage({
       )}
 
       {(totalPages ?? 0) > 1 && (
-        <nav
-          aria-label="Pagination"
-          className="mt-4 flex justify-center gap-2"
-        >
+        <nav aria-label="Pagination" className="mt-4 flex justify-center gap-2">
           {Array.from({ length: totalPages! }, (_, i) => {
             const pageNum = i + 1;
             const query = buildQuery({

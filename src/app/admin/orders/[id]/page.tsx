@@ -29,9 +29,7 @@ export async function generateMetadata({
       select: { orderNumber: true },
     });
     return {
-      title: order
-        ? `Order ${order.orderNumber} | Admin`
-        : 'Order | Admin',
+      title: order ? `Order ${order.orderNumber} | Admin` : 'Order | Admin',
     };
   } catch {
     return { title: 'Order | Admin' };

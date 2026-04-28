@@ -34,7 +34,10 @@ type ProcessedWebhookEventRow = {
 type DBShape = {
   users: Map<string, AppUser>;
   categories: Map<string, Category>;
-  products: Map<string, Product & { images: ProductImage[]; variants: ProductVariant[] }>;
+  products: Map<
+    string,
+    Product & { images: ProductImage[]; variants: ProductVariant[] }
+  >;
   productImages: Map<string, ProductImage>;
   productVariants: Map<string, ProductVariant>;
   orders: Map<string, Order & { items: OrderItem[] }>;
@@ -142,7 +145,8 @@ export class FakeDB {
       description: overrides.description ?? 'Test product description.',
       shortDescription: overrides.shortDescription ?? null,
       categoryId: overrides.categoryId ?? this.seedCategory().id,
-      basePrice: (overrides.basePrice ?? 45000) as unknown as Product['basePrice'],
+      basePrice: (overrides.basePrice ??
+        45000) as unknown as Product['basePrice'],
       compareAtPrice: (overrides.compareAtPrice ?? null) as unknown as
         | Product['compareAtPrice']
         | null,
@@ -165,7 +169,9 @@ export class FakeDB {
         productId: id,
         name: v.name ?? `Variant ${vid}`,
         label: v.label ?? 'Default',
-        price: (v.price ?? (overrides.basePrice ?? 45000)) as unknown as ProductVariant['price'],
+        price: (v.price ??
+          overrides.basePrice ??
+          45000) as unknown as ProductVariant['price'],
         stockQuantity: v.stockQuantity ?? 5,
         sku: v.sku ?? null,
         isActive: v.isActive ?? true,
@@ -211,7 +217,10 @@ export class FakeDB {
 
   /** Seed store settings. Decimal fields accept plain numbers. */
   seedSettings(
-    overrides: Omit<Partial<StoreSettings>, 'shippingFee' | 'freeShippingMin'> & {
+    overrides: Omit<
+      Partial<StoreSettings>,
+      'shippingFee' | 'freeShippingMin'
+    > & {
       shippingFee?: number;
       freeShippingMin?: number | null;
     } = {},
@@ -223,8 +232,10 @@ export class FakeDB {
       storePhone: overrides.storePhone ?? null,
       whatsappNumber: overrides.whatsappNumber ?? null,
       currency: overrides.currency ?? 'NGN',
-      shippingFee: (overrides.shippingFee ?? 2500) as unknown as StoreSettings['shippingFee'],
-      freeShippingMin: (overrides.freeShippingMin ?? 50000) as unknown as StoreSettings['freeShippingMin'],
+      shippingFee: (overrides.shippingFee ??
+        2500) as unknown as StoreSettings['shippingFee'],
+      freeShippingMin: (overrides.freeShippingMin ??
+        50000) as unknown as StoreSettings['freeShippingMin'],
       announcementBar: overrides.announcementBar ?? null,
       isMaintenanceMode: overrides.isMaintenanceMode ?? false,
       metadata: overrides.metadata ?? null,
@@ -240,7 +251,11 @@ export function makePrismaMock(fake: FakeDB) {
   const db = fake.db;
 
   const user = {
-    findUnique: async ({ where }: { where: { id?: string; email?: string } }) => {
+    findUnique: async ({
+      where,
+    }: {
+      where: { id?: string; email?: string };
+    }) => {
       if (where.id) return db.users.get(where.id) ?? null;
       if (where.email) {
         for (const u of db.users.values()) {
@@ -272,7 +287,11 @@ export function makePrismaMock(fake: FakeDB) {
     }) => {
       const existing = db.users.get(where.id);
       if (!existing) throw new Error('Not found');
-      const updated = { ...existing, ...data, updatedAt: new Date() } as AppUser;
+      const updated = {
+        ...existing,
+        ...data,
+        updatedAt: new Date(),
+      } as AppUser;
       db.users.set(where.id, updated);
       return updated;
     },
@@ -295,10 +314,12 @@ export function makePrismaMock(fake: FakeDB) {
     }) => {
       if (where.id) return db.categories.get(where.id) ?? null;
       if (where.slug) {
-        for (const c of db.categories.values()) if (c.slug === where.slug) return c;
+        for (const c of db.categories.values())
+          if (c.slug === where.slug) return c;
       }
       if (where.name) {
-        for (const c of db.categories.values()) if (c.name === where.name) return c;
+        for (const c of db.categories.values())
+          if (c.name === where.name) return c;
       }
       return null;
     },
@@ -335,7 +356,11 @@ export function makePrismaMock(fake: FakeDB) {
     }) => {
       const existing = db.categories.get(where.id);
       if (!existing) throw new Error('Not found');
-      const updated = { ...existing, ...data, updatedAt: new Date() } as Category;
+      const updated = {
+        ...existing,
+        ...data,
+        updatedAt: new Date(),
+      } as Category;
       db.categories.set(where.id, updated);
       return updated;
     },
@@ -367,7 +392,9 @@ export function makePrismaMock(fake: FakeDB) {
       where: { id?: string; slug?: string };
       include?: { variants?: boolean; images?: boolean; category?: boolean };
     }) => {
-      let row: (typeof db.products extends Map<string, infer R> ? R : never) | null = null;
+      let row:
+        | (typeof db.products extends Map<string, infer R> ? R : never)
+        | null = null;
       if (where.id) row = db.products.get(where.id) ?? null;
       if (where.slug) {
         for (const p of db.products.values()) {
@@ -471,9 +498,7 @@ export function makePrismaMock(fake: FakeDB) {
     }: {
       where: { id: string };
       data: Partial<Product> & {
-        stockQuantity?:
-          | number
-          | { increment?: number; decrement?: number };
+        stockQuantity?: number | { increment?: number; decrement?: number };
       };
     }) => {
       const existing = db.products.get(where.id);
@@ -674,10 +699,13 @@ export function makePrismaMock(fake: FakeDB) {
   };
 
   const order = {
-    count: async ({ where }: { where?: { createdAt?: { gte?: Date } } } = {}) => {
+    count: async ({
+      where,
+    }: { where?: { createdAt?: { gte?: Date } } } = {}) => {
       let n = 0;
       for (const o of db.orders.values()) {
-        if (where?.createdAt?.gte && o.createdAt < where.createdAt.gte) continue;
+        if (where?.createdAt?.gte && o.createdAt < where.createdAt.gte)
+          continue;
         n++;
       }
       return n;
@@ -710,7 +738,8 @@ export function makePrismaMock(fake: FakeDB) {
         shippingCity: data.shippingCity ?? null,
         shippingState: data.shippingState ?? null,
         subtotal: data.subtotal!,
-        shippingCost: data.shippingCost ?? (0 as unknown as Order['shippingCost']),
+        shippingCost:
+          data.shippingCost ?? (0 as unknown as Order['shippingCost']),
         total: data.total!,
         currency: data.currency ?? 'NGN',
         paymentReference: data.paymentReference ?? null,
@@ -807,9 +836,7 @@ export function makePrismaMock(fake: FakeDB) {
       where: {
         id?: string;
         paymentReference?: string;
-        status?:
-          | string
-          | { in?: string[]; notIn?: string[]; not?: string };
+        status?: string | { in?: string[]; notIn?: string[]; not?: string };
       };
       data: Partial<Order>;
     }) => {
@@ -920,10 +947,13 @@ export function makePrismaMock(fake: FakeDB) {
   // snapshot the scalar values and write them back on error rather than
   // swapping Map references. Orders + order items are insert-only inside
   // a tx, so replacing the Maps with the pre-tx snapshot is sufficient.
-  const $transaction = async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
+  const $transaction = async <T>(
+    fn: (tx: unknown) => Promise<T>,
+  ): Promise<T> => {
     const stockSnap = new Map<string, number>();
     for (const [k, v] of db.products) stockSnap.set(`p:${k}`, v.stockQuantity);
-    for (const [k, v] of db.productVariants) stockSnap.set(`v:${k}`, v.stockQuantity);
+    for (const [k, v] of db.productVariants)
+      stockSnap.set(`v:${k}`, v.stockQuantity);
     const ordersSnap = new Map(db.orders);
     const orderItemsSnap = new Map(db.orderItems);
     const productImagesSnap = new Map(db.productImages);
@@ -1130,7 +1160,10 @@ export class FakeSupabaseAuth {
   }) => {
     for (const u of this.users.values()) {
       if (u.email === email) {
-        return { data: { user: null, session: null }, error: { message: 'User already registered' } };
+        return {
+          data: { user: null, session: null },
+          error: { message: 'User already registered' },
+        };
       }
     }
     const id = crypto.randomUUID();
@@ -1177,7 +1210,10 @@ export class FakeSupabaseAuth {
         };
       }
     }
-    return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } };
+    return {
+      data: { user: null, session: null },
+      error: { message: 'Invalid login credentials' },
+    };
   };
 
   signOut = async () => {
@@ -1188,11 +1224,13 @@ export class FakeSupabaseAuth {
   getUser = async () => {
     if (this.currentUserId) {
       const u = this.users.get(this.currentUserId);
-      if (u) return { data: { user: { id: u.id, email: u.email } }, error: null };
+      if (u)
+        return { data: { user: { id: u.id, email: u.email } }, error: null };
     }
     if (this.recoveryUserId) {
       const u = this.users.get(this.recoveryUserId);
-      if (u) return { data: { user: { id: u.id, email: u.email } }, error: null };
+      if (u)
+        return { data: { user: { id: u.id, email: u.email } }, error: null };
     }
     return { data: { user: null }, error: null };
   };
@@ -1210,7 +1248,8 @@ export class FakeSupabaseAuth {
 
   updateUser = async (updates: { password?: string; email?: string }) => {
     const id = this.currentUserId ?? this.recoveryUserId;
-    if (!id) return { data: { user: null }, error: { message: 'Not authenticated' } };
+    if (!id)
+      return { data: { user: null }, error: { message: 'Not authenticated' } };
     const u = this.users.get(id);
     if (!u) return { data: { user: null }, error: { message: 'Not found' } };
     if (updates.password) u.password = updates.password;
@@ -1218,14 +1257,19 @@ export class FakeSupabaseAuth {
     return { data: { user: { id: u.id, email: u.email } }, error: null };
   };
 
-  resend = async (_args: { type: string; email: string; options?: unknown }) => {
+  resend = async (_args: {
+    type: string;
+    email: string;
+    options?: unknown;
+  }) => {
     return { data: {}, error: null };
   };
 }
 
 /** Next.js cookies()/headers() fake. */
 export class FakeCookies {
-  store: Map<string, { name: string; value: string; options?: unknown }> = new Map();
+  store: Map<string, { name: string; value: string; options?: unknown }> =
+    new Map();
 
   reset() {
     this.store.clear();

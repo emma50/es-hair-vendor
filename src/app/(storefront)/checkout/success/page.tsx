@@ -108,9 +108,7 @@ export default async function CheckoutSuccessPage({
   // (waiting on an async webhook). If the verify call agrees on
   // amount+currency, the order flips to CONFIRMED right here; otherwise
   // we show a "being confirmed" state and leave the webhook to finish.
-  const reconciled = order
-    ? await reconcilePendingPaystackOrder(order)
-    : null;
+  const reconciled = order ? await reconcilePendingPaystackOrder(order) : null;
   const displayStatus = reconciled?.status ?? order?.status ?? null;
   const isPaystackPendingConfirmation =
     order?.channel === 'PAYSTACK' && displayStatus === 'PENDING';

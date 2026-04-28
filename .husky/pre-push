@@ -1,0 +1,22 @@
+#!/usr/bin/env sh
+# Pre-push: full Vercel-equivalent gate.
+# Anything caught by `next build` on Vercel must be caught here first.
+#
+# Stages:
+#   - typecheck          (~5-10s) — same as Vercel build's TS step
+#   - lint               (~3s)    — Vercel runs eslint via next build
+#   - test               (~15s)   — vitest, all flow + unit tests
+#   - next build         (~30-60s) — production build, including the
+#                                    type-aware route checks that local
+#                                    tsc alone doesn't run
+#
+# Total ~1-2 minutes on a warm cache. Run this once before pushing
+# rather than discovering each failure mode in Vercel's queue.
+#
+# If you genuinely need to push without verifying (work-in-progress
+# branch, broken-by-design WIP commit), use `git push --no-verify`.
+
+set -e
+
+echo "→ Running full verification (typecheck + lint + test + next build)"
+pnpm verify

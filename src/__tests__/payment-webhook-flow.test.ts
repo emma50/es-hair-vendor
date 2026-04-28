@@ -85,9 +85,7 @@ function stubSecret() {
   vi.stubEnv('PAYSTACK_SECRET_KEY', SECRET);
 }
 
-const { POST: webhookPOST } = await import(
-  '@/app/api/webhooks/paystack/route'
-);
+const { POST: webhookPOST } = await import('@/app/api/webhooks/paystack/route');
 
 function sign(body: string) {
   return createHmac('sha512', SECRET).update(body).digest('hex');
@@ -187,7 +185,13 @@ describe('Paystack webhook — charge.success', () => {
     const body = JSON.stringify({
       event: 'charge.success',
       id: 'evt-123',
-      data: { reference: ref, amount: 4_750_000, status: 'success', id: 7001, currency: 'NGN' },
+      data: {
+        reference: ref,
+        amount: 4_750_000,
+        status: 'success',
+        id: 7001,
+        currency: 'NGN',
+      },
     });
     const response = await webhookPOST(buildRequest(body, sign(body)));
     expect(response.status).toBe(200);
@@ -238,7 +242,12 @@ describe('Paystack webhook — charge.success', () => {
     const body = JSON.stringify({
       event: 'charge.success',
       id: 'evt-verify-fail',
-      data: { reference: ref, amount: 4_750_000, status: 'success', currency: 'NGN' },
+      data: {
+        reference: ref,
+        amount: 4_750_000,
+        status: 'success',
+        currency: 'NGN',
+      },
     });
     const response = await webhookPOST(buildRequest(body, sign(body)));
     expect(response.status).toBe(200);
@@ -252,7 +261,12 @@ describe('Paystack webhook — charge.success', () => {
       event: 'charge.success',
       id: 'evt-amt',
       // Off by one kobo.
-      data: { reference: ref, amount: 4_749_999, status: 'success', currency: 'NGN' },
+      data: {
+        reference: ref,
+        amount: 4_749_999,
+        status: 'success',
+        currency: 'NGN',
+      },
     });
     const response = await webhookPOST(buildRequest(body, sign(body)));
     expect(response.status).toBe(200);
@@ -283,7 +297,12 @@ describe('Paystack webhook — ProcessedWebhookEvent dedup', () => {
     const body = JSON.stringify({
       event: 'charge.success',
       id: 'evt-dedup-xyz',
-      data: { reference: ref, amount: 4_750_000, status: 'success', currency: 'NGN' },
+      data: {
+        reference: ref,
+        amount: 4_750_000,
+        status: 'success',
+        currency: 'NGN',
+      },
     });
 
     // First delivery → handler runs, order CONFIRMED, one dedup row inserted.
@@ -311,7 +330,10 @@ describe('Paystack webhook — ProcessedWebhookEvent dedup', () => {
     // Second delivery, same event.id → P2002 on dedup insert → ack with duplicate flag.
     const res2 = await webhookPOST(buildRequest(body, sign(body)));
     expect(res2.status).toBe(200);
-    const json = (await res2.json()) as { received: boolean; duplicate?: boolean };
+    const json = (await res2.json()) as {
+      received: boolean;
+      duplicate?: boolean;
+    };
     expect(json.received).toBe(true);
     expect(json.duplicate).toBe(true);
     // Handler path short-circuits before verifyTransaction.
@@ -326,7 +348,12 @@ describe('Paystack webhook — ProcessedWebhookEvent dedup', () => {
     const bodyA = JSON.stringify({
       event: 'charge.success',
       id: 'evt-A',
-      data: { reference: ref, amount: 4_750_000, status: 'success', currency: 'NGN' },
+      data: {
+        reference: ref,
+        amount: 4_750_000,
+        status: 'success',
+        currency: 'NGN',
+      },
     });
     await webhookPOST(buildRequest(bodyA, sign(bodyA)));
 
@@ -387,7 +414,9 @@ describe('Paystack webhook — charge.failed / charge.abandoned', () => {
     });
     await webhookPOST(buildRequest(bodyB, sign(bodyB)));
 
-    expect(fakeDB.db.products.get(product.id)!.stockQuantity).toBe(stockAfterFirst);
+    expect(fakeDB.db.products.get(product.id)!.stockQuantity).toBe(
+      stockAfterFirst,
+    );
   });
 });
 

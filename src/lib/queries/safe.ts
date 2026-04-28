@@ -46,8 +46,7 @@ export async function safeQuery<T>(
     // routes console.warn to the function-logs view.
     const message = error instanceof Error ? error.message : String(error);
     // Truncate so a Prisma stack dump doesn't hijack the terminal.
-    const short =
-      message.length > 300 ? `${message.slice(0, 300)}…` : message;
+    const short = message.length > 300 ? `${message.slice(0, 300)}…` : message;
     console.warn(
       `[safeQuery${label ? `:${label}` : ''}] failed, returning fallback: ${short}`,
     );

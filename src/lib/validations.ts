@@ -64,10 +64,7 @@ export const checkoutFormSchema = z.object({
   notes: z
     .string()
     .trim()
-    .max(
-      ADMIN_TEXT_MAX,
-      `Notes must be ${ADMIN_TEXT_MAX} characters or fewer`,
-    )
+    .max(ADMIN_TEXT_MAX, `Notes must be ${ADMIN_TEXT_MAX} characters or fewer`)
     .optional(),
 });
 

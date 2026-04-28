@@ -78,9 +78,7 @@ export async function sweepAbandonedPendingOrders(
   const CONCURRENCY = 8;
   for (let i = 0; i < candidates.length; i += CONCURRENCY) {
     const chunk = candidates.slice(i, i + CONCURRENCY);
-    const outcomes = await Promise.all(
-      chunk.map((order) => processOne(order)),
-    );
+    const outcomes = await Promise.all(chunk.map((order) => processOne(order)));
     for (const outcome of outcomes) {
       if (outcome === 'promoted') result.promoted += 1;
       else if (outcome === 'cancelled') result.cancelled += 1;
@@ -93,16 +91,14 @@ export async function sweepAbandonedPendingOrders(
 
 type ProcessOutcome = 'promoted' | 'cancelled' | 'errored';
 
-async function processOne(
-  order: {
-    id: string;
-    orderNumber: string;
-    total: import('@prisma/client').Prisma.Decimal;
-    paymentReference: string | null;
-    stockReleased: boolean;
-    items: { productId: string; variantId: string | null; quantity: number }[];
-  },
-): Promise<ProcessOutcome> {
+async function processOne(order: {
+  id: string;
+  orderNumber: string;
+  total: import('@prisma/client').Prisma.Decimal;
+  paymentReference: string | null;
+  stockReleased: boolean;
+  items: { productId: string; variantId: string | null; quantity: number }[];
+}): Promise<ProcessOutcome> {
   if (!order.paymentReference) {
     logServerWarn(
       'orders.sweepAbandoned',

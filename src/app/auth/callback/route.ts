@@ -19,7 +19,8 @@ import { safeRedirectPath } from '@/lib/safe-redirect';
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url);
   const code = searchParams.get('code');
-  const redirectTo = safeRedirectPath(searchParams.get('redirect')) ?? '/account';
+  const redirectTo =
+    safeRedirectPath(searchParams.get('redirect')) ?? '/account';
 
   if (code) {
     const supabase = await createClient();
