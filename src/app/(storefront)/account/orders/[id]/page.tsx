@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import type { Order, OrderItem } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/auth/require-user';
 import { formatNaira, formatDateTime } from '@/lib/formatters';
@@ -12,26 +11,46 @@ interface OrderDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-// Explicit local type for the include shape used below. We use direct
-// model imports (`Order`, `OrderItem`) instead of
-// `Prisma.OrderGetPayload<…>`: in Prisma 7's ES-module-first client
-// the `Prisma` namespace isn't re-exported from `@prisma/client` the
-// way it was in v6, and Vercel's build (which runs `prisma generate`
-// fresh) reports `Module '@prisma/client' has no exported member
-// 'Prisma'` when we tried that path. The model interfaces are still
-// exported and combine cleanly here.
+// Hand-written interfaces for ONLY the fields this page reads. We
+// avoid importing types from `@prisma/client` here because Vercel's
+// build typecheck has repeatedly rejected those imports for this
+// specific file — first complaining about `Prisma.OrderGetPayload`,
+// then about `Order` and `OrderItem` being "not exported", even
+// though the generated client clearly exports them locally. Likely a
+// pnpm symlink resolution quirk in Vercel's serverless build worker
+// that we can't reproduce; the local `pnpm exec next build` is
+// happy. Sidestepping the entire `@prisma/client` import on this
+// page makes the build deterministic.
 //
-// Tying the variable's type to this — instead of letting TS infer it
-// through `await prisma.order.findFirst(...).catch(...)` — survives
-// every inference quirk Next.js's build typecheck has thrown at this
-// file. `OrderWithItems | null` is the literal shape we want;
-// `findFirst` returns null when nothing matches, the catch() re-throws
-// so the runtime value is one of those two.
-type OrderWithItems = Order & { items: OrderItem[] };
-// Likewise: name the line-item element type explicitly so the JSX
-// `.map((item) => …)` callback parameter has a known type even if
-// some upstream inference goes wrong.
-type OrderItemRow = OrderItem;
+// `unknown` is used for Prisma Decimal columns because we coerce
+// them via `Number(...)` at every use site — no need to drag the
+// Decimal type in.
+interface OrderItemRow {
+  id: string;
+  name: string;
+  variantName: string | null;
+  price: unknown; // Decimal — coerced via Number() at use site
+  quantity: number;
+  total: unknown;
+}
+
+interface OrderWithItems {
+  id: string;
+  orderNumber: string;
+  status: string;
+  channel: string;
+  createdAt: Date;
+  total: unknown;
+  subtotal: unknown;
+  shippingCost: unknown;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string | null;
+  shippingAddress: string | null;
+  shippingCity: string | null;
+  shippingState: string | null;
+  items: OrderItemRow[];
+}
 
 export default async function OrderDetailPage({
   params,
@@ -51,7 +70,12 @@ export default async function OrderDetailPage({
   //   - thrown DB error      → let error.tsx show the retry UI
   let order: OrderWithItems | null;
   try {
-    order = await prisma.order.findFirst({
+    // Cast through `unknown` to our local interface. Prisma's actual
+    // return type uses Decimal for money fields where our local
+    // interface uses `unknown` (we coerce via `Number()` at the use
+    // site anyway). Runtime shape is identical; only the static type
+    // differs to keep this file independent of `@prisma/client`.
+    const result = await prisma.order.findFirst({
       where: { id, userId: current.id },
       include: {
         items: {
@@ -59,6 +83,7 @@ export default async function OrderDetailPage({
         },
       },
     });
+    order = result as unknown as OrderWithItems | null;
   } catch (error) {
     logServerError('accountOrderDetail', error);
     // Re-throw so Next.js renders the nearest error.tsx (retry UI)

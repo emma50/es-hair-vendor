@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "typecheck": "tsc --noEmit",
-    "build": "prisma generate && pnpm typecheck && next build",
+    "build": "pnpm typecheck && next build",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -32,7 +32,8 @@
     "db:mock:reset": "tsx scripts/dev-db/delete.ts --yes && tsx scripts/dev-db/populate.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
