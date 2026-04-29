@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "typecheck": "tsc --noEmit",
-    "build": "pnpm typecheck && next build",
+    "build": "prisma generate && prisma migrate deploy && pnpm typecheck && next build",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",

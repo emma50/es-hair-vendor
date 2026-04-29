@@ -4,6 +4,14 @@
 -- on a two-step migration. New rows are populated by the application
 -- (see createOrder in src/app/actions/orders.ts).
 
+-- pgcrypto provides gen_random_bytes(). It's not enabled by default
+-- on a fresh Postgres / Supabase project (and it's not enabled on
+-- Prisma's shadow database, which is what surfaced this in
+-- `prisma migrate dev`). Enable it before the UPDATE below uses it.
+-- IF NOT EXISTS keeps the migration idempotent against existing
+-- environments where pgcrypto is already enabled.
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- AlterTable
 ALTER TABLE "Order"
   ADD COLUMN "accessToken" TEXT;
