@@ -309,7 +309,7 @@ describe('cart item extraction for order creation', () => {
       }),
     );
 
-    const item = useCartStore.getState().items[0];
+    const item = useCartStore.getState().items[0]!;
     expect(item.variantId).toBe('v-18');
     expect(item.variantName).toBe('18 Inches');
 

@@ -130,7 +130,14 @@ export function CategoryList({ categories: initial }: CategoryListProps) {
     const target = idx + direction;
     if (idx < 0 || target < 0 || target >= items.length) return;
     const next = [...items];
-    [next[idx], next[target]] = [next[target], next[idx]];
+    const a = next[idx];
+    const b = next[target];
+    // Both bounds-checked above (idx in [0, length), target in [0, length))
+    // — the early return guarantees these are defined. Narrowing here
+    // satisfies noUncheckedIndexedAccess.
+    if (!a || !b) return;
+    next[idx] = b;
+    next[target] = a;
     setItems(next);
     startTransition(async () => {
       const result = await reorderCategories(next.map((c) => c.id));

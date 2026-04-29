@@ -76,8 +76,8 @@ describe('ActionResult type contract', () => {
 
     expect(successes).toHaveLength(1);
     expect(failures).toHaveLength(1);
-    expect(successes[0].data).toBe('hello');
-    expect(failures[0].error).toBe('oops');
+    expect(successes[0]!.data).toBe('hello');
+    expect(failures[0]!.error).toBe('oops');
   });
 });
 

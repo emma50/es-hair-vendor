@@ -92,7 +92,7 @@ describe('cart-store - extended scenarios', () => {
         );
       useCartStore.getState().removeItem('p1', 'v1');
       expect(useCartStore.getState().items).toHaveLength(1);
-      expect(useCartStore.getState().items[0].variantId).toBe('v2');
+      expect(useCartStore.getState().items[0]!.variantId).toBe('v2');
     });
 
     it('updates quantity for correct variant', () => {
@@ -125,7 +125,7 @@ describe('cart-store - extended scenarios', () => {
     it('adding item with quantity 0 still adds item', () => {
       useCartStore.getState().addItem(makeItem({ quantity: 0 }));
       expect(useCartStore.getState().items).toHaveLength(1);
-      expect(useCartStore.getState().items[0].quantity).toBe(0);
+      expect(useCartStore.getState().items[0]!.quantity).toBe(0);
     });
 
     it('subtotal of empty cart is 0', () => {
@@ -157,7 +157,7 @@ describe('cart-store - extended scenarios', () => {
       useCartStore.getState().updateQuantity('nonexistent', null, 5);
       // Original item should be unchanged
       expect(useCartStore.getState().items).toHaveLength(1);
-      expect(useCartStore.getState().items[0].quantity).toBe(1);
+      expect(useCartStore.getState().items[0]!.quantity).toBe(1);
     });
 
     it('handles high-value items without overflow', () => {
@@ -174,7 +174,7 @@ describe('cart-store - extended scenarios', () => {
     it('maxStock of 1 prevents adding more than 1', () => {
       useCartStore.getState().addItem(makeItem({ quantity: 1, maxStock: 1 }));
       useCartStore.getState().addItem(makeItem({ quantity: 1, maxStock: 1 }));
-      expect(useCartStore.getState().items[0].quantity).toBe(1);
+      expect(useCartStore.getState().items[0]!.quantity).toBe(1);
     });
   });
 });

@@ -57,7 +57,7 @@ describe('cart store — single source of truth', () => {
     });
     const items = useCartStore.getState().items;
     expect(items).toHaveLength(1);
-    expect(items[0].quantity).toBe(5);
+    expect(items[0]!.quantity).toBe(5);
   });
 
   it('addItem caps quantity at maxStock', () => {
@@ -65,7 +65,7 @@ describe('cart store — single source of truth', () => {
       useCartStore.getState().addItem(makeItem({ quantity: 7, maxStock: 10 }));
       useCartStore.getState().addItem(makeItem({ quantity: 5, maxStock: 10 }));
     });
-    expect(useCartStore.getState().items[0].quantity).toBe(10);
+    expect(useCartStore.getState().items[0]!.quantity).toBe(10);
   });
 
   it('addItem treats different variants as separate items', () => {
@@ -88,7 +88,7 @@ describe('cart store — single source of truth', () => {
     });
     const items = useCartStore.getState().items;
     expect(items).toHaveLength(1);
-    expect(items[0].productId).toBe('b');
+    expect(items[0]!.productId).toBe('b');
   });
 
   it('removeItem is a no-op for non-existent item', () => {
@@ -104,7 +104,7 @@ describe('cart store — single source of truth', () => {
       useCartStore.getState().addItem(makeItem({ quantity: 1 }));
       useCartStore.getState().updateQuantity('prod-1', null, 5);
     });
-    expect(useCartStore.getState().items[0].quantity).toBe(5);
+    expect(useCartStore.getState().items[0]!.quantity).toBe(5);
   });
 
   it('updateQuantity removes item when quantity ≤ 0', () => {
@@ -120,7 +120,7 @@ describe('cart store — single source of truth', () => {
       useCartStore.getState().addItem(makeItem({ maxStock: 5 }));
       useCartStore.getState().updateQuantity('prod-1', null, 99);
     });
-    expect(useCartStore.getState().items[0].quantity).toBe(5);
+    expect(useCartStore.getState().items[0]!.quantity).toBe(5);
   });
 
   it('clearCart empties all items', () => {
@@ -256,7 +256,7 @@ describe('state isolation — no cross-contamination', () => {
 
     const items = useCartStore.getState().items;
     expect(items).toHaveLength(1);
-    expect(items[0].productId).toBe('new');
+    expect(items[0]!.productId).toBe('new');
   });
 
   it('removing last item results in empty array (not undefined)', () => {

@@ -106,7 +106,10 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selected = sorted[selectedIndex];
 
-  if (!sorted.length) {
+  // `selected` may be undefined either because `sorted` is empty or
+  // because selectedIndex got out of range (e.g. images were trimmed
+  // upstream). Either way, render the empty state.
+  if (!sorted.length || !selected) {
     return (
       <div className="bg-charcoal text-muted flex aspect-square items-center justify-center rounded-lg">
         No images available

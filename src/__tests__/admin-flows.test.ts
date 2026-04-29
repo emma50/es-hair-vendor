@@ -180,7 +180,7 @@ describe('admin category CRUD', () => {
     });
     expect(result.success).toBe(true);
     expect(fakeDB.db.categories.size).toBe(1);
-    const cat = Array.from(fakeDB.db.categories.values())[0];
+    const cat = Array.from(fakeDB.db.categories.values())[0]!;
     expect(cat.name).toBe('Bundles');
     expect(cat.slug).toBe('bundles');
     expect(cat.sortOrder).toBe(1);
@@ -313,9 +313,9 @@ describe('admin product CRUD', () => {
     expect(updated.name).toBe('New Name');
     expect(updated.slug).toBe('new-name');
     expect(updated.variants.length).toBe(1);
-    expect(updated.variants[0].label).toBe('20"');
+    expect(updated.variants[0]!.label).toBe('20"');
     expect(updated.images.length).toBe(1);
-    expect(updated.images[0].publicId).toBe('new');
+    expect(updated.images[0]!.publicId).toBe('new');
   });
 
   it('soft-deletes a product by flipping isActive', async () => {
@@ -364,6 +364,7 @@ describe('admin order status transitions', () => {
     if (!result.success) throw new Error('Order creation failed in setup');
     await signIn({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD });
     const order = Array.from(fakeDB.db.orders.values())[0];
+    if (!order) throw new Error('Seeded order missing from fakeDB');
     return { product, order };
   }
 

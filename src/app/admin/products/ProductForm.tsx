@@ -124,8 +124,9 @@ export function ProductForm({ product, categories }: ProductFormProps) {
         .filter((i) => i.key !== key)
         .map((i, idx) => ({ ...i, sortOrder: idx }));
       // If the removed image was the primary and we have others, promote the first.
-      if (next.length > 0 && !next.some((i) => i.isPrimary)) {
-        next[0] = { ...next[0], isPrimary: true };
+      const head = next[0];
+      if (head && !next.some((i) => i.isPrimary)) {
+        next[0] = { ...head, isPrimary: true };
       }
       return next;
     });
@@ -141,7 +142,12 @@ export function ProductForm({ product, categories }: ProductFormProps) {
       const target = idx + direction;
       if (idx < 0 || target < 0 || target >= prev.length) return prev;
       const next = [...prev];
-      [next[idx], next[target]] = [next[target], next[idx]];
+      const a = next[idx];
+      const b = next[target];
+      // Bounds checked above; narrowing for noUncheckedIndexedAccess.
+      if (!a || !b) return prev;
+      next[idx] = b;
+      next[target] = a;
       return next.map((i, newIdx) => ({ ...i, sortOrder: newIdx }));
     });
   }

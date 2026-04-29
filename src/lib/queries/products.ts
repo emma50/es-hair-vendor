@@ -114,7 +114,9 @@ export async function getProducts({
 
         const hasMore = products.length > limit;
         const items = hasMore ? products.slice(0, limit) : products;
-        const nextCursor = hasMore ? items[items.length - 1].id : null;
+        const nextCursor = hasMore
+          ? (items[items.length - 1]?.id ?? null)
+          : null;
 
         return {
           products: serialize(items),
@@ -145,7 +147,9 @@ export async function getProducts({
         currentPage,
         // Provide cursor for switching to cursor-based after initial load
         nextCursor:
-          products.length === limit ? products[products.length - 1].id : null,
+          products.length === limit
+            ? (products[products.length - 1]?.id ?? null)
+            : null,
         hasMore: currentPage * limit < total,
       };
     },
@@ -321,7 +325,9 @@ export async function getAdminProducts({
           total: 0,
           totalPages: 0,
           currentPage,
-          nextCursor: hasMore ? items[items.length - 1].id : null,
+          nextCursor: hasMore
+            ? (items[items.length - 1]?.id ?? null)
+            : null,
           hasMore,
         };
       }
@@ -343,7 +349,9 @@ export async function getAdminProducts({
         totalPages: Math.ceil(total / limit),
         currentPage,
         nextCursor:
-          products.length === limit ? products[products.length - 1].id : null,
+          products.length === limit
+            ? (products[products.length - 1]?.id ?? null)
+            : null,
         hasMore: currentPage * limit < total,
       };
     },
@@ -449,7 +457,9 @@ export async function getAdminOrders({
           total: 0,
           totalPages: 0,
           currentPage,
-          nextCursor: hasMore ? items[items.length - 1].id : null,
+          nextCursor: hasMore
+            ? (items[items.length - 1]?.id ?? null)
+            : null,
           hasMore,
         };
       }
@@ -471,7 +481,9 @@ export async function getAdminOrders({
         totalPages: Math.ceil(total / limit),
         currentPage,
         nextCursor:
-          orders.length === limit ? orders[orders.length - 1].id : null,
+          orders.length === limit
+            ? (orders[orders.length - 1]?.id ?? null)
+            : null,
         hasMore: currentPage * limit < total,
       };
     },

@@ -126,7 +126,7 @@ describe('customer sign-up flow', () => {
     // Both sides of the identity should be populated.
     expect(fakeSupabase.users.size).toBe(1);
     expect(fakeDB.db.users.size).toBe(1);
-    const appUser = Array.from(fakeDB.db.users.values())[0];
+    const appUser = Array.from(fakeDB.db.users.values())[0]!;
     expect(appUser.email).toBe('chioma@example.com');
     expect(appUser.name).toBe('Chioma Adebayo');
     expect(appUser.role).toBe('CUSTOMER');
@@ -175,7 +175,7 @@ describe('customer sign-up flow', () => {
     // Attacker passes `role: 'ADMIN'` in the payload — server action
     // must ignore it (schema strips unknown keys + explicit force).
     await signUpCustomer({ ...VALID_SIGNUP, role: 'ADMIN' });
-    const appUser = Array.from(fakeDB.db.users.values())[0];
+    const appUser = Array.from(fakeDB.db.users.values())[0]!;
     expect(appUser.role).toBe('CUSTOMER');
   });
 });
@@ -286,7 +286,7 @@ describe('guest Paystack checkout', () => {
 
     // Order row exists with correct totals.
     expect(fakeDB.db.orders.size).toBe(1);
-    const order = Array.from(fakeDB.db.orders.values())[0];
+    const order = Array.from(fakeDB.db.orders.values())[0]!;
     expect(order.status).toBe('PENDING');
     expect(order.channel).toBe('PAYSTACK');
     expect(Number(order.subtotal)).toBe(90000);
@@ -470,8 +470,8 @@ describe('signed-in customer Paystack checkout', () => {
     );
     expect(result.success).toBe(true);
 
-    const order = Array.from(fakeDB.db.orders.values())[0];
-    const appUser = Array.from(fakeDB.db.users.values())[0];
+    const order = Array.from(fakeDB.db.orders.values())[0]!;
+    const appUser = Array.from(fakeDB.db.users.values())[0]!;
     expect(order.userId).toBe(appUser.id);
   });
 });
@@ -488,7 +488,7 @@ describe('guest WhatsApp checkout', () => {
     );
     expect(result.success).toBe(true);
     if (!result.success) return;
-    const order = Array.from(fakeDB.db.orders.values())[0];
+    const order = Array.from(fakeDB.db.orders.values())[0]!;
     expect(order.channel).toBe('WHATSAPP');
     expect(order.paymentReference).toBeNull();
     // Still decrements stock — order is pending confirmation via WhatsApp.
@@ -515,7 +515,7 @@ describe('checkout with product variants', () => {
         },
       ],
     });
-    const variant = product.variants[0];
+    const variant = product.variants[0]!;
     const result = await createOrder(
       VALID_CHECKOUT,
       [{ productId: product.id, variantId: variant.id, quantity: 2 }],
@@ -545,7 +545,7 @@ describe('customer profile update', () => {
       email: VALID_SIGNUP.email,
     });
     expect(result.success).toBe(true);
-    const appUser = Array.from(fakeDB.db.users.values())[0];
+    const appUser = Array.from(fakeDB.db.users.values())[0]!;
     expect(appUser.name).toBe('Chioma A.');
   });
 
@@ -556,11 +556,11 @@ describe('customer profile update', () => {
     });
     expect(result.success).toBe(true);
     // Supabase row now holds the new email.
-    const supaUser = Array.from(fakeSupabase.users.values())[0];
+    const supaUser = Array.from(fakeSupabase.users.values())[0]!;
     expect(supaUser.email).toBe('new-email@example.com');
     // Prisma row still holds the old email until the confirmation flow
     // completes (next session refresh re-syncs).
-    const appUser = Array.from(fakeDB.db.users.values())[0];
+    const appUser = Array.from(fakeDB.db.users.values())[0]!;
     expect(appUser.email).toBe(VALID_SIGNUP.email);
   });
 
@@ -612,7 +612,7 @@ describe('authenticated password change', () => {
       confirmPassword: 'New-Good-Pass-99',
     });
     expect(result.success).toBe(true);
-    const supaUser = Array.from(fakeSupabase.users.values())[0];
+    const supaUser = Array.from(fakeSupabase.users.values())[0]!;
     expect(supaUser.password).toBe('New-Good-Pass-99');
   });
 

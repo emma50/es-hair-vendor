@@ -68,7 +68,7 @@ describe('serialize', () => {
     };
     const result = serialize(data);
     expect(result.product.basePrice).toBe(50000);
-    expect(result.product.variants[0].price).toBe(60000);
+    expect(result.product.variants[0]!.price).toBe(60000);
   });
 
   it('handles arrays', () => {
@@ -77,8 +77,8 @@ describe('serialize', () => {
       { price: { toNumber: () => 200, toString: () => '200' } },
     ];
     const result = serialize(data);
-    expect(result[0].price).toBe(100);
-    expect(result[1].price).toBe(200);
+    expect(result[0]!.price).toBe(100);
+    expect(result[1]!.price).toBe(200);
   });
 
   it('preserves null fields', () => {

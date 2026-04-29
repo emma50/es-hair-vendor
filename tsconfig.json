@@ -5,6 +5,19 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    // Strictness beyond the `strict` umbrella, in priority order:
+    //   - noImplicitReturns: every code path must explicitly return,
+    //     catches "fell off the end" bugs.
+    //   - noFallthroughCasesInSwitch: switch cases must break/return.
+    //   - noUncheckedIndexedAccess: arr[0] is T | undefined (not T)
+    //     — surfaces array-bounds and Map.get bugs that previously
+    //     hid behind silent any.
+    //   - useUnknownInCatchVariables: `catch (e)` is `unknown`, not
+    //     `any`. Forces explicit type narrowing before property access.
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "useUnknownInCatchVariables": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",

@@ -24,20 +24,20 @@ describe('cart-store', () => {
     it('adds a new item to empty cart', () => {
       useCartStore.getState().addItem(makeItem());
       expect(useCartStore.getState().items).toHaveLength(1);
-      expect(useCartStore.getState().items[0].name).toBe('Test Bundle');
+      expect(useCartStore.getState().items[0]!.name).toBe('Test Bundle');
     });
 
     it('increments quantity for existing item', () => {
       useCartStore.getState().addItem(makeItem({ quantity: 2 }));
       useCartStore.getState().addItem(makeItem({ quantity: 3 }));
       expect(useCartStore.getState().items).toHaveLength(1);
-      expect(useCartStore.getState().items[0].quantity).toBe(5);
+      expect(useCartStore.getState().items[0]!.quantity).toBe(5);
     });
 
     it('caps quantity at maxStock', () => {
       useCartStore.getState().addItem(makeItem({ quantity: 7, maxStock: 10 }));
       useCartStore.getState().addItem(makeItem({ quantity: 7, maxStock: 10 }));
-      expect(useCartStore.getState().items[0].quantity).toBe(10);
+      expect(useCartStore.getState().items[0]!.quantity).toBe(10);
     });
 
     it('treats different variants as separate items', () => {
@@ -53,7 +53,7 @@ describe('cart-store', () => {
       useCartStore.getState().addItem(makeItem({ productId: 'p2' }));
       useCartStore.getState().removeItem('p1', null);
       expect(useCartStore.getState().items).toHaveLength(1);
-      expect(useCartStore.getState().items[0].productId).toBe('p2');
+      expect(useCartStore.getState().items[0]!.productId).toBe('p2');
     });
 
     it('is a no-op for non-existent item', () => {
@@ -67,7 +67,7 @@ describe('cart-store', () => {
     it('updates to a valid quantity', () => {
       useCartStore.getState().addItem(makeItem());
       useCartStore.getState().updateQuantity('p1', null, 5);
-      expect(useCartStore.getState().items[0].quantity).toBe(5);
+      expect(useCartStore.getState().items[0]!.quantity).toBe(5);
     });
 
     it('removes item when quantity is 0', () => {
@@ -85,7 +85,7 @@ describe('cart-store', () => {
     it('caps at maxStock', () => {
       useCartStore.getState().addItem(makeItem({ maxStock: 5 }));
       useCartStore.getState().updateQuantity('p1', null, 99);
-      expect(useCartStore.getState().items[0].quantity).toBe(5);
+      expect(useCartStore.getState().items[0]!.quantity).toBe(5);
     });
   });
 
