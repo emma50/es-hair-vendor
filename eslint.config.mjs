@@ -18,7 +18,23 @@ const eslintConfig = [
   },
   {
     rules: {
-      '@typescript-eslint/no-explicit-any': 'warn',
+      // Hard-block any new explicit `any` from landing in source. The
+      // one existing `as any` (in payment-webhook-flow.test.ts) is
+      // grandfathered via its own eslint-disable-next-line comment.
+      '@typescript-eslint/no-explicit-any': 'error',
+      // NOTE: `no-unsafe-*` rules (unsafe-assignment / member-access /
+      // call / return) require type-aware linting via
+      // `parserOptions.project`. They were removed here because
+      // turning them on without that wiring crashes lint with
+      // "you have used a rule which requires type information". If we
+      // ever want them back, set up typed linting properly:
+      //   1. Add `parserOptions.project: ./tsconfig.json` to a TS
+      //      override block.
+      //   2. Accept the ~30s+ lint-time hit (these rules walk the TS
+      //      type checker).
+      // Until then, `no-explicit-any` + the strict tsconfig flags
+      // (noUncheckedIndexedAccess, useUnknownInCatchVariables, etc.)
+      // already catch the bulk of unsafe-any propagation.
       // Allow `const { drop, ...rest } = obj` patterns without requiring
       // the dropped key to be used — the whole point of those
       // destructures is to exclude a field from the spread.

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/auth/require-user';
 import { formatNaira, formatDateTime } from '@/lib/formatters';
@@ -10,6 +11,21 @@ import { Badge } from '@/components/ui/Badge';
 interface OrderDetailPageProps {
   params: Promise<{ id: string }>;
 }
+
+// Explicit Prisma payload type for the include shape used below. Tying
+// the variable's type to this — instead of letting TS infer it through
+// `await prisma.order.findFirst(...).catch(...)` — survives every
+// inference quirk Next.js's build typecheck has thrown at this file.
+// `OrderWithItems | null` is the literal shape we want; `findFirst`
+// returns null when nothing matches, the catch() re-throws so the
+// runtime value is one of those two.
+type OrderWithItems = Prisma.OrderGetPayload<{
+  include: { items: true };
+}>;
+// Likewise: name the line-item element type explicitly so the JSX
+// `.map((item) => …)` callback parameter has a known type even if
+// some upstream inference goes wrong.
+type OrderItemRow = OrderWithItems['items'][number];
 
 export default async function OrderDetailPage({
   params,
@@ -27,28 +43,22 @@ export default async function OrderDetailPage({
   // that actually exists. Handle the two cases separately:
   //   - `null` return        → genuinely not this user's order → 404
   //   - thrown DB error      → let error.tsx show the retry UI
-  const order = await prisma.order
-    .findFirst({
+  let order: OrderWithItems | null;
+  try {
+    order = await prisma.order.findFirst({
       where: { id, userId: current.id },
       include: {
         items: {
           orderBy: { id: 'asc' },
         },
       },
-    })
-    // The `: never` return annotation is load-bearing: without it TS
-    // infers the handler's return as `void`, which widens the awaited
-    // value to `OrderType | void` and collapses `order.items` to
-    // `any`. Vercel's `next build` typecheck catches that; local
-    // `tsc --noEmit` doesn't always. With `never`, the handler is
-    // pinned as "produces no value, only throws" and `order` keeps
-    // the original `findFirst` return type.
-    .catch((error: unknown): never => {
-      logServerError('accountOrderDetail', error);
-      // Re-throw so Next.js renders the nearest error.tsx (retry UI)
-      // rather than silently 404ing on a transient failure.
-      throw error;
     });
+  } catch (error) {
+    logServerError('accountOrderDetail', error);
+    // Re-throw so Next.js renders the nearest error.tsx (retry UI)
+    // rather than silently 404ing on a transient failure.
+    throw error;
+  }
 
   if (!order) notFound();
 
@@ -87,7 +97,7 @@ export default async function OrderDetailPage({
           Items
         </h2>
         <ul className="border-slate/50 divide-slate/40 divide-y border-y">
-          {order.items.map((item) => (
+          {order.items.map((item: OrderItemRow) => (
             <li
               key={item.id}
               className="flex items-center justify-between gap-4 py-3"

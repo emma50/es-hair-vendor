@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 
 // Pin `next/image` to this project's Cloudinary cloud. Without a
@@ -9,6 +10,13 @@ const CLOUDINARY_CLOUD = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME?.trim();
 const cloudinaryPathname = CLOUDINARY_CLOUD ? `/${CLOUDINARY_CLOUD}/**` : '/**';
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root so Next's file-tracer doesn't walk up
+  // looking for a lockfile and pick a stray `package-lock.json` from
+  // a parent directory (a leftover from a different project sitting
+  // in the same source-code/ folder). Without this, Next emits the
+  // "multiple lockfiles" warning on every build and may bundle the
+  // wrong files into the serverless function trace.
+  outputFileTracingRoot: path.join(import.meta.dirname),
   images: {
     remotePatterns: [
       {
