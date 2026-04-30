@@ -43,12 +43,12 @@ async function main(): Promise<void> {
     create: {
       id: 'default',
       storeName: 'Emmanuel Sarah Hair',
-      storeEmail: 'hello@eshair.com',
+      storeEmail: 'se351436@gmail.com',
       storePhone: '+234 812 345 6789',
       whatsappNumber: '+2348123456789',
       currency: 'NGN',
       shippingFee: 2500,
-      freeShippingMin: 100000,
+      freeShippingMin: 5000,
       // Announcement bar is intentionally null — the storefront treats
       // a missing/blank value as "hidden". The admin opts in by setting
       // it from the admin settings page.

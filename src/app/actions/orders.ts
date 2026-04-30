@@ -788,9 +788,7 @@ export async function cancelPendingOrder(
  * We hard-cap `olderThanMinutes` at 10 as a safety floor — anything
  * younger might legitimately still be in Paystack's settlement queue.
  */
-export async function adminSweepAbandonedOrders(
-  olderThanMinutes = 30,
-): Promise<
+export async function adminSweepAbandonedOrders(olderThanMinutes = 30): Promise<
   ActionResult<{
     considered: number;
     cancelled: number;

@@ -325,9 +325,7 @@ export async function getAdminProducts({
           total: 0,
           totalPages: 0,
           currentPage,
-          nextCursor: hasMore
-            ? (items[items.length - 1]?.id ?? null)
-            : null,
+          nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
           hasMore,
         };
       }
@@ -457,9 +455,7 @@ export async function getAdminOrders({
           total: 0,
           totalPages: 0,
           currentPage,
-          nextCursor: hasMore
-            ? (items[items.length - 1]?.id ?? null)
-            : null,
+          nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
           hasMore,
         };
       }
