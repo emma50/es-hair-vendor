@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import { Playfair_Display, Inter, JetBrains_Mono } from 'next/font/google';
-import { Analytics } from '@vercel/analytics/react';
 import { ToastProvider } from '@/components/ui/Toast';
 import { WhatsAppFABLoader } from '@/components/shared/WhatsAppFABLoader';
 import { ThemeProvider, themeInitScript } from '@/lib/theme';
@@ -76,7 +75,6 @@ export default function RootLayout({
             <WhatsAppFABLoader />
           </ToastProvider>
         </ThemeProvider>
-        <Analytics />
       </body>
     </html>
   );
