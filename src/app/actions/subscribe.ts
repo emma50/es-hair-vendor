@@ -3,30 +3,41 @@
 import { prisma } from '@/lib/prisma';
 import { emailSubscribeSchema } from '@/lib/validations';
 import type { ActionResult } from '@/types';
+import * as Sentry from '@sentry/nextjs';
+import { headers } from 'next/headers';
 
 export async function subscribeEmail(
   formData: FormData,
 ): Promise<ActionResult<{ email: string }>> {
-  const raw = { email: formData.get('email') as string };
-  const parsed = emailSubscribeSchema.safeParse(raw);
+  return Sentry.withServerActionInstrumentation(
+    'subscribeEmail',
+    { formData, headers: await headers() },
+    async (): Promise<ActionResult<{ email: string }>> => {
+      const raw = { email: formData.get('email') as string };
+      const parsed = emailSubscribeSchema.safeParse(raw);
 
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: 'Invalid email address',
-      fieldErrors: parsed.error.flatten().fieldErrors,
-    };
-  }
+      if (!parsed.success) {
+        return {
+          success: false,
+          error: 'Invalid email address',
+          fieldErrors: parsed.error.flatten().fieldErrors,
+        };
+      }
 
-  try {
-    await prisma.emailSubscriber.upsert({
-      where: { email: parsed.data.email },
-      update: {},
-      create: { email: parsed.data.email },
-    });
+      try {
+        await prisma.emailSubscriber.upsert({
+          where: { email: parsed.data.email },
+          update: {},
+          create: { email: parsed.data.email },
+        });
 
-    return { success: true, data: { email: parsed.data.email } };
-  } catch {
-    return { success: false, error: 'Something went wrong. Please try again.' };
-  }
+        return { success: true, data: { email: parsed.data.email } };
+      } catch {
+        return {
+          success: false,
+          error: 'Something went wrong. Please try again.',
+        };
+      }
+    },
+  );
 }

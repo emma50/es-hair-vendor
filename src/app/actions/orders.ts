@@ -1,8 +1,9 @@
 'use server';
 
 import { randomBytes } from 'node:crypto';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
+import * as Sentry from '@sentry/nextjs';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { getCurrentUser } from '@/lib/auth/get-user';
@@ -82,295 +83,301 @@ export async function createOrder(
   cartItems: CartItemInput[],
   channel: 'PAYSTACK' | 'WHATSAPP',
 ): Promise<ActionResult<CreateOrderResult>> {
-  const parsed = checkoutFormSchema.safeParse(formData);
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: 'Please check your form fields.',
-      fieldErrors: parsed.error.flatten().fieldErrors,
-    };
-  }
-
-  // Validate the cart payload server-side. The client persists this
-  // in localStorage and so it's effectively user-controlled input —
-  // see `cartItemSchema` for the full attack surface this closes
-  // (negative quantities, NaN, non-CUID IDs, bulk-insert DoS).
-  const parsedItems = cartItemsArraySchema.safeParse(cartItems);
-  if (!parsedItems.success) {
-    return {
-      success: false,
-      error:
-        parsedItems.error.issues[0]?.message ??
-        'Your cart contains an invalid item. Please refresh and try again.',
-    };
-  }
-  const safeItems = parsedItems.data;
-
-  // Email is optional for WhatsApp (we contact via the phone number)
-  // but Paystack NEEDS it — their inline checkout requires a customer
-  // email to charge, and without one we'd create a PENDING order that
-  // can never be paid (inventory held for no reason). Enforce here on
-  // the server so a DevTools-tampered client can't bypass the UI's
-  // required-field attribute. `parsed.data.customerEmail` is already
-  // trimmed by Zod; treat empty string as missing.
-  if (channel === 'PAYSTACK' && !parsed.data.customerEmail) {
-    return {
-      success: false,
-      error: 'Email is required for card payment.',
-      fieldErrors: {
-        customerEmail: ['Email is required for card payment.'],
-      },
-    };
-  }
-
-  // Best-effort user lookup — anonymous checkout is still supported.
-  // When the shopper is signed in, we link the order to their User
-  // record so it appears under `/account/orders`. Failures fall back
-  // to guest checkout (null userId) rather than blocking the sale.
-  const current = await getCurrentUser();
-
-  try {
-    // Fetch current prices from DB (never trust client)
-    const productIds = [...new Set(safeItems.map((i) => i.productId))];
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      include: { variants: true },
-    });
-
-    const productMap = new Map(products.map((p) => [p.id, p]));
-
-    // Validate stock and calculate totals
-    let subtotal = 0;
-    const orderItems: {
-      productId: string;
-      variantId: string | null;
-      name: string;
-      variantName: string | null;
-      price: number;
-      quantity: number;
-      total: number;
-    }[] = [];
-
-    for (const cartItem of safeItems) {
-      const product = productMap.get(cartItem.productId);
-      if (!product) {
-        return { success: false, error: `Product not found.` };
-      }
-
-      let price: number;
-      let stockQty: number;
-      let variantName: string | null = null;
-
-      if (cartItem.variantId) {
-        const variant = product.variants.find(
-          (v) => v.id === cartItem.variantId,
-        );
-        if (!variant) {
-          return { success: false, error: `Product variant not found.` };
-        }
-        price = Number(variant.price);
-        stockQty = variant.stockQuantity;
-        variantName = variant.label;
-      } else {
-        price = Number(product.basePrice);
-        stockQty = product.stockQuantity;
-      }
-
-      if (cartItem.quantity > stockQty) {
+  return Sentry.withServerActionInstrumentation(
+    'createOrder',
+    { headers: await headers() },
+    async (): Promise<ActionResult<CreateOrderResult>> => {
+      const parsed = checkoutFormSchema.safeParse(formData);
+      if (!parsed.success) {
         return {
           success: false,
-          error: `${product.name} only has ${stockQty} in stock.`,
+          error: 'Please check your form fields.',
+          fieldErrors: parsed.error.flatten().fieldErrors,
         };
       }
 
-      const lineTotal = price * cartItem.quantity;
-      subtotal += lineTotal;
+      // Validate the cart payload server-side. The client persists this
+      // in localStorage and so it's effectively user-controlled input —
+      // see `cartItemSchema` for the full attack surface this closes
+      // (negative quantities, NaN, non-CUID IDs, bulk-insert DoS).
+      const parsedItems = cartItemsArraySchema.safeParse(cartItems);
+      if (!parsedItems.success) {
+        return {
+          success: false,
+          error:
+            parsedItems.error.issues[0]?.message ??
+            'Your cart contains an invalid item. Please refresh and try again.',
+        };
+      }
+      const safeItems = parsedItems.data;
 
-      orderItems.push({
-        productId: product.id,
-        variantId: cartItem.variantId,
-        name: product.name,
-        variantName,
-        price,
-        quantity: cartItem.quantity,
-        total: lineTotal,
-      });
-    }
+      // Email is optional for WhatsApp (we contact via the phone number)
+      // but Paystack NEEDS it — their inline checkout requires a customer
+      // email to charge, and without one we'd create a PENDING order that
+      // can never be paid (inventory held for no reason). Enforce here on
+      // the server so a DevTools-tampered client can't bypass the UI's
+      // required-field attribute. `parsed.data.customerEmail` is already
+      // trimmed by Zod; treat empty string as missing.
+      if (channel === 'PAYSTACK' && !parsed.data.customerEmail) {
+        return {
+          success: false,
+          error: 'Email is required for card payment.',
+          fieldErrors: {
+            customerEmail: ['Email is required for card payment.'],
+          },
+        };
+      }
 
-    // Get shipping settings
-    const settings = await prisma.storeSettings.findUnique({
-      where: { id: 'default' },
-    });
-    const shippingFee = settings ? Number(settings.shippingFee) : 0;
-    const freeMin = settings?.freeShippingMin
-      ? Number(settings.freeShippingMin)
-      : null;
-    const shippingCost = freeMin && subtotal >= freeMin ? 0 : shippingFee;
-    const total = subtotal + shippingCost;
-
-    // Generate capability token — this, NOT the orderNumber, is what the
-    // success page uses to authorize access. Order numbers are sequential
-    // and easily guessed; tokens are 256-bit random values.
-    const accessToken = generateOrderAccessToken();
-    const accessTokenExpiresAt = new Date(
-      Date.now() + ORDER_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
-    );
-    // Regenerated per attempt (see loop): the `paymentReference @unique`
-    // constraint means a cosmic-ray collision would fail with P2002,
-    // and we retry with a fresh value rather than failing the customer.
-    let paymentReference = generatePaymentReference();
-
-    // Order-number generation is racy: two concurrent checkouts that read
-    // the same `todayCount` would both compute the same number and the
-    // second insert would hit the `orderNumber` unique constraint. Retry
-    // on P2002 with a fresh count so parallel checkouts don't fail for
-    // customers. 5 attempts is plenty for realistic traffic.
-    // Lagos midnight, not server-local (UTC) midnight, so the daily
-    // order-number sequence rolls over at 00:00 Lagos rather than 1
-    // AM Lagos.
-    const today = lagosStartOfDay();
-
-    let orderNumber = '';
-    let attempt = 0;
-    const MAX_ATTEMPTS = 5;
-
-    while (attempt < MAX_ATTEMPTS) {
-      const todayCount = await prisma.order.count({
-        where: { createdAt: { gte: today } },
-      });
-      orderNumber = formatOrderNumber(new Date(), todayCount + 1 + attempt);
+      // Best-effort user lookup — anonymous checkout is still supported.
+      // When the shopper is signed in, we link the order to their User
+      // record so it appears under `/account/orders`. Failures fall back
+      // to guest checkout (null userId) rather than blocking the sale.
+      const current = await getCurrentUser();
 
       try {
-        await prisma.$transaction(async (tx) => {
-          await tx.order.create({
-            data: {
-              orderNumber,
-              accessToken,
-              accessTokenExpiresAt,
-              userId: current?.id ?? null,
-              status: 'PENDING',
-              channel,
-              customerName: parsed.data.customerName,
-              customerEmail: parsed.data.customerEmail || null,
-              customerPhone: parsed.data.customerPhone,
-              shippingAddress: parsed.data.shippingAddress,
-              shippingCity: parsed.data.shippingCity,
-              shippingState: parsed.data.shippingState,
-              notes: parsed.data.notes || null,
-              subtotal,
-              shippingCost,
-              total,
-              paymentReference:
-                channel === 'PAYSTACK' ? paymentReference : null,
-              items: { create: orderItems },
-            },
-          });
-
-          // Conditional stock decrement. `updateMany` with a `gte` guard
-          // lets us detect "stock was taken by a concurrent order" by
-          // checking the affected count — if zero rows updated, we
-          // throw to abort the transaction. This closes the window
-          // between the pre-check above and the decrement here.
-          for (const cartItem of safeItems) {
-            if (cartItem.variantId) {
-              const res = await tx.productVariant.updateMany({
-                where: {
-                  id: cartItem.variantId,
-                  stockQuantity: { gte: cartItem.quantity },
-                },
-                data: { stockQuantity: { decrement: cartItem.quantity } },
-              });
-              if (res.count === 0) {
-                throw new Error('STOCK_RACE');
-              }
-            } else {
-              const res = await tx.product.updateMany({
-                where: {
-                  id: cartItem.productId,
-                  stockQuantity: { gte: cartItem.quantity },
-                },
-                data: { stockQuantity: { decrement: cartItem.quantity } },
-              });
-              if (res.count === 0) {
-                throw new Error('STOCK_RACE');
-              }
-            }
-          }
+        // Fetch current prices from DB (never trust client)
+        const productIds = [...new Set(safeItems.map((i) => i.productId))];
+        const products = await prisma.product.findMany({
+          where: { id: { in: productIds } },
+          include: { variants: true },
         });
-        // Success — exit retry loop
-        break;
-      } catch (err) {
-        // Stock race inside the transaction: surface a friendly error
-        // without retrying; the customer needs to reload the cart.
-        if (err instanceof Error && err.message === 'STOCK_RACE') {
-          return {
-            success: false,
-            error:
-              'One of the items in your cart was just purchased by someone else. Please refresh and try again.',
-          };
+
+        const productMap = new Map(products.map((p) => [p.id, p]));
+
+        // Validate stock and calculate totals
+        let subtotal = 0;
+        const orderItems: {
+          productId: string;
+          variantId: string | null;
+          name: string;
+          variantName: string | null;
+          price: number;
+          quantity: number;
+          total: number;
+        }[] = [];
+
+        for (const cartItem of safeItems) {
+          const product = productMap.get(cartItem.productId);
+          if (!product) {
+            return { success: false, error: `Product not found.` };
+          }
+
+          let price: number;
+          let stockQty: number;
+          let variantName: string | null = null;
+
+          if (cartItem.variantId) {
+            const variant = product.variants.find(
+              (v) => v.id === cartItem.variantId,
+            );
+            if (!variant) {
+              return { success: false, error: `Product variant not found.` };
+            }
+            price = Number(variant.price);
+            stockQty = variant.stockQuantity;
+            variantName = variant.label;
+          } else {
+            price = Number(product.basePrice);
+            stockQty = product.stockQuantity;
+          }
+
+          if (cartItem.quantity > stockQty) {
+            return {
+              success: false,
+              error: `${product.name} only has ${stockQty} in stock.`,
+            };
+          }
+
+          const lineTotal = price * cartItem.quantity;
+          subtotal += lineTotal;
+
+          orderItems.push({
+            productId: product.id,
+            variantId: cartItem.variantId,
+            name: product.name,
+            variantName,
+            price,
+            quantity: cartItem.quantity,
+            total: lineTotal,
+          });
         }
-        // Duplicate orderNumber OR paymentReference — retry with a
-        // bumped count and a fresh 128-bit reference. Either collision
-        // is astronomically unlikely with crypto randomness, but the
-        // `@unique` constraint fails closed so we roll again rather
-        // than fail the customer.
-        const isUniqueViolation =
-          typeof err === 'object' &&
-          err !== null &&
-          'code' in err &&
-          (err as { code?: string }).code === 'P2002';
-        if (isUniqueViolation) {
-          attempt++;
-          if (attempt >= MAX_ATTEMPTS) throw err;
-          paymentReference = generatePaymentReference();
-          continue;
+
+        // Get shipping settings
+        const settings = await prisma.storeSettings.findUnique({
+          where: { id: 'default' },
+        });
+        const shippingFee = settings ? Number(settings.shippingFee) : 0;
+        const freeMin = settings?.freeShippingMin
+          ? Number(settings.freeShippingMin)
+          : null;
+        const shippingCost = freeMin && subtotal >= freeMin ? 0 : shippingFee;
+        const total = subtotal + shippingCost;
+
+        // Generate capability token — this, NOT the orderNumber, is what the
+        // success page uses to authorize access. Order numbers are sequential
+        // and easily guessed; tokens are 256-bit random values.
+        const accessToken = generateOrderAccessToken();
+        const accessTokenExpiresAt = new Date(
+          Date.now() + ORDER_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
+        );
+        // Regenerated per attempt (see loop): the `paymentReference @unique`
+        // constraint means a cosmic-ray collision would fail with P2002,
+        // and we retry with a fresh value rather than failing the customer.
+        let paymentReference = generatePaymentReference();
+
+        // Order-number generation is racy: two concurrent checkouts that read
+        // the same `todayCount` would both compute the same number and the
+        // second insert would hit the `orderNumber` unique constraint. Retry
+        // on P2002 with a fresh count so parallel checkouts don't fail for
+        // customers. 5 attempts is plenty for realistic traffic.
+        // Lagos midnight, not server-local (UTC) midnight, so the daily
+        // order-number sequence rolls over at 00:00 Lagos rather than 1
+        // AM Lagos.
+        const today = lagosStartOfDay();
+
+        let orderNumber = '';
+        let attempt = 0;
+        const MAX_ATTEMPTS = 5;
+
+        while (attempt < MAX_ATTEMPTS) {
+          const todayCount = await prisma.order.count({
+            where: { createdAt: { gte: today } },
+          });
+          orderNumber = formatOrderNumber(new Date(), todayCount + 1 + attempt);
+
+          try {
+            await prisma.$transaction(async (tx) => {
+              await tx.order.create({
+                data: {
+                  orderNumber,
+                  accessToken,
+                  accessTokenExpiresAt,
+                  userId: current?.id ?? null,
+                  status: 'PENDING',
+                  channel,
+                  customerName: parsed.data.customerName,
+                  customerEmail: parsed.data.customerEmail || null,
+                  customerPhone: parsed.data.customerPhone,
+                  shippingAddress: parsed.data.shippingAddress,
+                  shippingCity: parsed.data.shippingCity,
+                  shippingState: parsed.data.shippingState,
+                  notes: parsed.data.notes || null,
+                  subtotal,
+                  shippingCost,
+                  total,
+                  paymentReference:
+                    channel === 'PAYSTACK' ? paymentReference : null,
+                  items: { create: orderItems },
+                },
+              });
+
+              // Conditional stock decrement. `updateMany` with a `gte` guard
+              // lets us detect "stock was taken by a concurrent order" by
+              // checking the affected count — if zero rows updated, we
+              // throw to abort the transaction. This closes the window
+              // between the pre-check above and the decrement here.
+              for (const cartItem of safeItems) {
+                if (cartItem.variantId) {
+                  const res = await tx.productVariant.updateMany({
+                    where: {
+                      id: cartItem.variantId,
+                      stockQuantity: { gte: cartItem.quantity },
+                    },
+                    data: { stockQuantity: { decrement: cartItem.quantity } },
+                  });
+                  if (res.count === 0) {
+                    throw new Error('STOCK_RACE');
+                  }
+                } else {
+                  const res = await tx.product.updateMany({
+                    where: {
+                      id: cartItem.productId,
+                      stockQuantity: { gte: cartItem.quantity },
+                    },
+                    data: { stockQuantity: { decrement: cartItem.quantity } },
+                  });
+                  if (res.count === 0) {
+                    throw new Error('STOCK_RACE');
+                  }
+                }
+              }
+            });
+            // Success — exit retry loop
+            break;
+          } catch (err) {
+            // Stock race inside the transaction: surface a friendly error
+            // without retrying; the customer needs to reload the cart.
+            if (err instanceof Error && err.message === 'STOCK_RACE') {
+              return {
+                success: false,
+                error:
+                  'One of the items in your cart was just purchased by someone else. Please refresh and try again.',
+              };
+            }
+            // Duplicate orderNumber OR paymentReference — retry with a
+            // bumped count and a fresh 128-bit reference. Either collision
+            // is astronomically unlikely with crypto randomness, but the
+            // `@unique` constraint fails closed so we roll again rather
+            // than fail the customer.
+            const isUniqueViolation =
+              typeof err === 'object' &&
+              err !== null &&
+              'code' in err &&
+              (err as { code?: string }).code === 'P2002';
+            if (isUniqueViolation) {
+              attempt++;
+              if (attempt >= MAX_ATTEMPTS) throw err;
+              paymentReference = generatePaymentReference();
+              continue;
+            }
+            throw err;
+          }
         }
-        throw err;
+
+        // Persist the token as an HTTP-only cookie so a redirect-heavy
+        // payment flow (Paystack → our /success) can still find the order
+        // even if the `t` query param is stripped by an intermediary.
+        const cookieStore = await cookies();
+        cookieStore.set(ORDER_TOKEN_COOKIE, accessToken, {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production',
+          path: '/',
+          maxAge: 60 * 60 * 24, // 24h — enough time for post-payment redirects
+        });
+
+        // Bust the storefront's ISR cache so the stock counts on the home
+        // page (revalidate=3600) and product pages (revalidate=1800) reflect
+        // the just-decremented inventory. Without this, a customer who buys
+        // the last unit leaves a "5 in stock" lie up for ~30 minutes, and
+        // the next visitor's checkout fails the server-side stock guard.
+        revalidatePath('/');
+        revalidatePath('/products');
+        for (const item of orderItems) {
+          const slug = productMap.get(item.productId)?.slug;
+          if (slug) revalidatePath(`/products/${slug}`);
+        }
+
+        return {
+          success: true,
+          data: {
+            orderNumber,
+            accessToken,
+            paymentReference,
+            // Paystack expects integer kobo. Fractional values silently reject.
+            amount: Math.round(total * 100),
+            email: parsed.data.customerEmail || '',
+          },
+        };
+      } catch (error) {
+        logServerError('orders.create', error);
+        return {
+          success: false,
+          error: 'Failed to create order. Please try again.',
+        };
       }
-    }
-
-    // Persist the token as an HTTP-only cookie so a redirect-heavy
-    // payment flow (Paystack → our /success) can still find the order
-    // even if the `t` query param is stripped by an intermediary.
-    const cookieStore = await cookies();
-    cookieStore.set(ORDER_TOKEN_COOKIE, accessToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 60 * 60 * 24, // 24h — enough time for post-payment redirects
-    });
-
-    // Bust the storefront's ISR cache so the stock counts on the home
-    // page (revalidate=3600) and product pages (revalidate=1800) reflect
-    // the just-decremented inventory. Without this, a customer who buys
-    // the last unit leaves a "5 in stock" lie up for ~30 minutes, and
-    // the next visitor's checkout fails the server-side stock guard.
-    revalidatePath('/');
-    revalidatePath('/products');
-    for (const item of orderItems) {
-      const slug = productMap.get(item.productId)?.slug;
-      if (slug) revalidatePath(`/products/${slug}`);
-    }
-
-    return {
-      success: true,
-      data: {
-        orderNumber,
-        accessToken,
-        paymentReference,
-        // Paystack expects integer kobo. Fractional values silently reject.
-        amount: Math.round(total * 100),
-        email: parsed.data.customerEmail || '',
-      },
-    };
-  } catch (error) {
-    logServerError('orders.create', error);
-    return {
-      success: false,
-      error: 'Failed to create order. Please try again.',
-    };
-  }
+    },
+  );
 }
 
 /**
@@ -400,159 +407,171 @@ export async function updateOrderStatus(
   orderId: string,
   payload: unknown,
 ): Promise<ActionResult> {
-  try {
-    await requireAdmin();
-  } catch {
-    return { success: false, error: 'Unauthorized' };
-  }
-
-  const parsed = orderStatusUpdateSchema.safeParse(payload);
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: 'Please choose a valid status.',
-      fieldErrors: parsed.error.flatten().fieldErrors,
-    };
-  }
-  const target: OrderStatus = parsed.data.status;
-
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { items: true },
-    });
-
-    if (!order) {
-      return { success: false, error: 'Order not found.' };
-    }
-
-    const current = order.status as OrderStatus;
-    if (current === target) {
-      // Nothing to do — preserves a fast-path, matches the "no-op" toast
-      // expectation on the client.
-      return { success: true, data: undefined };
-    }
-
-    if (!canTransition(current, target)) {
-      return {
-        success: false,
-        error: `Cannot change order from ${current} to ${target}.`,
-      };
-    }
-
-    const targetHoldsStock = holdsStock(target);
-    const shouldReleaseStock = order.stockReleased && !targetHoldsStock; // active → CANCELLED/REFUNDED
-    const shouldReclaimStock = !order.stockReleased && targetHoldsStock; // CANCELLED → active (blocked by state machine today)
-
-    await prisma.$transaction(async (tx) => {
-      if (shouldReleaseStock) {
-        for (const item of order.items) {
-          if (item.variantId) {
-            // updateMany is a silent no-op if the variant was deleted —
-            // this avoids aborting the whole status change on a missing
-            // historical variant.
-            await tx.productVariant.updateMany({
-              where: { id: item.variantId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-          } else {
-            await tx.product.updateMany({
-              where: { id: item.productId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-          }
-        }
-      } else if (shouldReclaimStock) {
-        // Guarded re-decrement: only succeeds if stock is still
-        // available. If a concurrent order has claimed it, throw
-        // STOCK_RACE and surface the error to the admin.
-        for (const item of order.items) {
-          if (item.variantId) {
-            const res = await tx.productVariant.updateMany({
-              where: {
-                id: item.variantId,
-                stockQuantity: { gte: item.quantity },
-              },
-              data: { stockQuantity: { decrement: item.quantity } },
-            });
-            if (res.count === 0) {
-              throw new Error('STOCK_RACE');
-            }
-          } else {
-            const res = await tx.product.updateMany({
-              where: {
-                id: item.productId,
-                stockQuantity: { gte: item.quantity },
-              },
-              data: { stockQuantity: { decrement: item.quantity } },
-            });
-            if (res.count === 0) {
-              throw new Error('STOCK_RACE');
-            }
-          }
-        }
+  return Sentry.withServerActionInstrumentation(
+    'updateOrderStatus',
+    { headers: await headers() },
+    async (): Promise<ActionResult> => {
+      try {
+        await requireAdmin();
+      } catch {
+        return { success: false, error: 'Unauthorized' };
       }
 
-      await tx.order.update({
-        where: { id: orderId },
-        data: {
-          status: target,
-          // Flip the flag only if we actually did stock work. Preserves
-          // the invariant: `stockReleased === true` ⇔ inventory has
-          // been subtracted for this order.
-          ...(shouldReleaseStock ? { stockReleased: false } : {}),
-          ...(shouldReclaimStock ? { stockReleased: true } : {}),
-        },
-      });
-    });
+      const parsed = orderStatusUpdateSchema.safeParse(payload);
+      if (!parsed.success) {
+        return {
+          success: false,
+          error: 'Please choose a valid status.',
+          fieldErrors: parsed.error.flatten().fieldErrors,
+        };
+      }
+      const target: OrderStatus = parsed.data.status;
 
-    revalidatePath(`/admin/orders/${orderId}`);
-    revalidatePath('/admin/orders');
-    revalidatePath('/admin');
-    return { success: true, data: undefined };
-  } catch (error) {
-    if (error instanceof Error && error.message === 'STOCK_RACE') {
-      return {
-        success: false,
-        error:
-          'Stock for one of the items has since been claimed by another order. Restock before changing this status.',
-      };
-    }
-    logServerError('orders.updateStatus', error);
-    return { success: false, error: 'Failed to update order status.' };
-  }
+      try {
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+          include: { items: true },
+        });
+
+        if (!order) {
+          return { success: false, error: 'Order not found.' };
+        }
+
+        const current = order.status as OrderStatus;
+        if (current === target) {
+          // Nothing to do — preserves a fast-path, matches the "no-op" toast
+          // expectation on the client.
+          return { success: true, data: undefined };
+        }
+
+        if (!canTransition(current, target)) {
+          return {
+            success: false,
+            error: `Cannot change order from ${current} to ${target}.`,
+          };
+        }
+
+        const targetHoldsStock = holdsStock(target);
+        const shouldReleaseStock = order.stockReleased && !targetHoldsStock; // active → CANCELLED/REFUNDED
+        const shouldReclaimStock = !order.stockReleased && targetHoldsStock; // CANCELLED → active (blocked by state machine today)
+
+        await prisma.$transaction(async (tx) => {
+          if (shouldReleaseStock) {
+            for (const item of order.items) {
+              if (item.variantId) {
+                // updateMany is a silent no-op if the variant was deleted —
+                // this avoids aborting the whole status change on a missing
+                // historical variant.
+                await tx.productVariant.updateMany({
+                  where: { id: item.variantId },
+                  data: { stockQuantity: { increment: item.quantity } },
+                });
+              } else {
+                await tx.product.updateMany({
+                  where: { id: item.productId },
+                  data: { stockQuantity: { increment: item.quantity } },
+                });
+              }
+            }
+          } else if (shouldReclaimStock) {
+            // Guarded re-decrement: only succeeds if stock is still
+            // available. If a concurrent order has claimed it, throw
+            // STOCK_RACE and surface the error to the admin.
+            for (const item of order.items) {
+              if (item.variantId) {
+                const res = await tx.productVariant.updateMany({
+                  where: {
+                    id: item.variantId,
+                    stockQuantity: { gte: item.quantity },
+                  },
+                  data: { stockQuantity: { decrement: item.quantity } },
+                });
+                if (res.count === 0) {
+                  throw new Error('STOCK_RACE');
+                }
+              } else {
+                const res = await tx.product.updateMany({
+                  where: {
+                    id: item.productId,
+                    stockQuantity: { gte: item.quantity },
+                  },
+                  data: { stockQuantity: { decrement: item.quantity } },
+                });
+                if (res.count === 0) {
+                  throw new Error('STOCK_RACE');
+                }
+              }
+            }
+          }
+
+          await tx.order.update({
+            where: { id: orderId },
+            data: {
+              status: target,
+              // Flip the flag only if we actually did stock work. Preserves
+              // the invariant: `stockReleased === true` ⇔ inventory has
+              // been subtracted for this order.
+              ...(shouldReleaseStock ? { stockReleased: false } : {}),
+              ...(shouldReclaimStock ? { stockReleased: true } : {}),
+            },
+          });
+        });
+
+        revalidatePath(`/admin/orders/${orderId}`);
+        revalidatePath('/admin/orders');
+        revalidatePath('/admin');
+        return { success: true, data: undefined };
+      } catch (error) {
+        if (error instanceof Error && error.message === 'STOCK_RACE') {
+          return {
+            success: false,
+            error:
+              'Stock for one of the items has since been claimed by another order. Restock before changing this status.',
+          };
+        }
+        logServerError('orders.updateStatus', error);
+        return { success: false, error: 'Failed to update order status.' };
+      }
+    },
+  );
 }
 
 export async function updateOrderNotes(
   orderId: string,
   adminNotes: string,
 ): Promise<ActionResult> {
-  try {
-    await requireAdmin();
-  } catch {
-    return { success: false, error: 'Unauthorized' };
-  }
+  return Sentry.withServerActionInstrumentation(
+    'updateOrderNotes',
+    { headers: await headers() },
+    async (): Promise<ActionResult> => {
+      try {
+        await requireAdmin();
+      } catch {
+        return { success: false, error: 'Unauthorized' };
+      }
 
-  const parsed = orderNotesUpdateSchema.safeParse({ adminNotes });
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: 'Please check the notes field.',
-      fieldErrors: parsed.error.flatten().fieldErrors,
-    };
-  }
+      const parsed = orderNotesUpdateSchema.safeParse({ adminNotes });
+      if (!parsed.success) {
+        return {
+          success: false,
+          error: 'Please check the notes field.',
+          fieldErrors: parsed.error.flatten().fieldErrors,
+        };
+      }
 
-  try {
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { adminNotes: parsed.data.adminNotes },
-    });
-    revalidatePath(`/admin/orders/${orderId}`);
-    return { success: true, data: undefined };
-  } catch (error) {
-    logServerError('orders.updateNotes', error);
-    return { success: false, error: 'Failed to update notes.' };
-  }
+      try {
+        await prisma.order.update({
+          where: { id: orderId },
+          data: { adminNotes: parsed.data.adminNotes },
+        });
+        revalidatePath(`/admin/orders/${orderId}`);
+        return { success: true, data: undefined };
+      } catch (error) {
+        logServerError('orders.updateNotes', error);
+        return { success: false, error: 'Failed to update notes.' };
+      }
+    },
+  );
 }
 
 /**
@@ -589,119 +608,130 @@ export async function refundOrder(
   orderId: string,
   payload: unknown,
 ): Promise<ActionResult> {
-  try {
-    await requireAdmin();
-  } catch {
-    return { success: false, error: 'Unauthorized' };
-  }
+  return Sentry.withServerActionInstrumentation(
+    'refundOrder',
+    { headers: await headers() },
+    async (): Promise<ActionResult> => {
+      try {
+        await requireAdmin();
+      } catch {
+        return { success: false, error: 'Unauthorized' };
+      }
 
-  const parsed = orderRefundSchema.safeParse(payload);
-  if (!parsed.success) {
-    return {
-      success: false,
-      error:
-        parsed.error.issues[0]?.message ?? 'Please provide a refund reason.',
-      fieldErrors: parsed.error.flatten().fieldErrors,
-    };
-  }
+      const parsed = orderRefundSchema.safeParse(payload);
+      if (!parsed.success) {
+        return {
+          success: false,
+          error:
+            parsed.error.issues[0]?.message ??
+            'Please provide a refund reason.',
+          fieldErrors: parsed.error.flatten().fieldErrors,
+        };
+      }
 
-  try {
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        orderNumber: true,
-        channel: true,
-        status: true,
-        total: true,
-        paymentReference: true,
-        paystackTransactionId: true,
-        paymentStatus: true,
-        adminNotes: true,
-      },
-    });
+      try {
+        const order = await prisma.order.findUnique({
+          where: { id: orderId },
+          select: {
+            id: true,
+            orderNumber: true,
+            channel: true,
+            status: true,
+            total: true,
+            paymentReference: true,
+            paystackTransactionId: true,
+            paymentStatus: true,
+            adminNotes: true,
+          },
+        });
 
-    if (!order) return { success: false, error: 'Order not found.' };
+        if (!order) return { success: false, error: 'Order not found.' };
 
-    if (order.channel !== 'PAYSTACK') {
-      return {
-        success: false,
-        error:
-          'Only Paystack orders can be refunded here. WhatsApp orders require an offline refund.',
-      };
-    }
+        if (order.channel !== 'PAYSTACK') {
+          return {
+            success: false,
+            error:
+              'Only Paystack orders can be refunded here. WhatsApp orders require an offline refund.',
+          };
+        }
 
-    if (order.status === 'REFUNDED' || order.status === 'CANCELLED') {
-      return {
-        success: false,
-        error: `Order is already ${order.status.toLowerCase()}.`,
-      };
-    }
+        if (order.status === 'REFUNDED' || order.status === 'CANCELLED') {
+          return {
+            success: false,
+            error: `Order is already ${order.status.toLowerCase()}.`,
+          };
+        }
 
-    if (order.paymentStatus === 'refunding') {
-      return {
-        success: false,
-        error:
-          'A refund is already in progress for this order. Wait for Paystack to finalise it.',
-      };
-    }
+        if (order.paymentStatus === 'refunding') {
+          return {
+            success: false,
+            error:
+              'A refund is already in progress for this order. Wait for Paystack to finalise it.',
+          };
+        }
 
-    const transactionTarget =
-      order.paystackTransactionId ?? order.paymentReference;
-    if (!transactionTarget) {
-      return {
-        success: false,
-        error: 'No Paystack transaction on file for this order.',
-      };
-    }
+        const transactionTarget =
+          order.paystackTransactionId ?? order.paymentReference;
+        if (!transactionTarget) {
+          return {
+            success: false,
+            error: 'No Paystack transaction on file for this order.',
+          };
+        }
 
-    // Mark the refund as in-flight FIRST. If we called Paystack first
-    // and our DB update failed afterwards, the refund would be live at
-    // Paystack while admin UI still showed "Refund" as clickable —
-    // admin double-clicks, second Paystack call rejects with "already
-    // refunded". Writing the lock first means a Paystack failure is
-    // recoverable: we revert the field below.
-    const notePrefix = order.adminNotes ? `${order.adminNotes}\n\n` : '';
-    const stamp = new Date().toISOString().slice(0, 10);
-    const newNote = `${notePrefix}[${stamp}] Refund initiated: ${parsed.data.reason}`;
+        // Mark the refund as in-flight FIRST. If we called Paystack first
+        // and our DB update failed afterwards, the refund would be live at
+        // Paystack while admin UI still showed "Refund" as clickable —
+        // admin double-clicks, second Paystack call rejects with "already
+        // refunded". Writing the lock first means a Paystack failure is
+        // recoverable: we revert the field below.
+        const notePrefix = order.adminNotes ? `${order.adminNotes}\n\n` : '';
+        const stamp = new Date().toISOString().slice(0, 10);
+        const newNote = `${notePrefix}[${stamp}] Refund initiated: ${parsed.data.reason}`;
 
-    await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        paymentStatus: 'refunding',
-        adminNotes: newNote.slice(0, 4000),
-      },
-    });
+        await prisma.order.update({
+          where: { id: orderId },
+          data: {
+            paymentStatus: 'refunding',
+            adminNotes: newNote.slice(0, 4000),
+          },
+        });
 
-    // Call Paystack's refund API. Amount is in kobo; omitting it
-    // defaults to a full refund which is the only flow we expose from
-    // the UI right now (partial refunds are deferred).
-    const totalKobo = Math.round(Number(order.total) * 100);
-    try {
-      await refundTransaction(transactionTarget, totalKobo, parsed.data.reason);
-    } catch (paystackError) {
-      // Revert the in-flight lock so admin can retry. We don't undo
-      // the adminNotes line — keeping the audit trail of "we tried"
-      // is intentional.
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { paymentStatus: order.paymentStatus },
-      });
-      throw paystackError;
-    }
+        // Call Paystack's refund API. Amount is in kobo; omitting it
+        // defaults to a full refund which is the only flow we expose from
+        // the UI right now (partial refunds are deferred).
+        const totalKobo = Math.round(Number(order.total) * 100);
+        try {
+          await refundTransaction(
+            transactionTarget,
+            totalKobo,
+            parsed.data.reason,
+          );
+        } catch (paystackError) {
+          // Revert the in-flight lock so admin can retry. We don't undo
+          // the adminNotes line — keeping the audit trail of "we tried"
+          // is intentional.
+          await prisma.order.update({
+            where: { id: orderId },
+            data: { paymentStatus: order.paymentStatus },
+          });
+          throw paystackError;
+        }
 
-    revalidatePath(`/admin/orders/${orderId}`);
-    revalidatePath('/admin/orders');
-    return { success: true, data: undefined };
-  } catch (error) {
-    logServerError('orders.refund', error);
-    const message =
-      error instanceof Error &&
-      error.message.startsWith('Paystack refund failed:')
-        ? error.message
-        : 'Failed to initiate refund. Please try again or contact support.';
-    return { success: false, error: message };
-  }
+        revalidatePath(`/admin/orders/${orderId}`);
+        revalidatePath('/admin/orders');
+        return { success: true, data: undefined };
+      } catch (error) {
+        logServerError('orders.refund', error);
+        const message =
+          error instanceof Error &&
+          error.message.startsWith('Paystack refund failed:')
+            ? error.message
+            : 'Failed to initiate refund. Please try again or contact support.';
+        return { success: false, error: message };
+      }
+    },
+  );
 }
 
 /**
@@ -721,61 +751,69 @@ export async function refundOrder(
 export async function cancelPendingOrder(
   accessToken: string,
 ): Promise<ActionResult> {
-  if (typeof accessToken !== 'string' || accessToken.length < 20) {
-    return { success: false, error: 'Invalid order token.' };
-  }
-
-  try {
-    const order = await prisma.order.findUnique({
-      where: { accessToken },
-      select: {
-        id: true,
-        status: true,
-        stockReleased: true,
-        channel: true,
-        items: {
-          select: { productId: true, variantId: true, quantity: true },
-        },
-      },
-    });
-
-    if (!order) return { success: true, data: undefined }; // fail silently
-    if (order.channel !== 'PAYSTACK') return { success: true, data: undefined };
-    if (order.status !== 'PENDING') return { success: true, data: undefined };
-
-    await prisma.$transaction(async (tx) => {
-      if (order.stockReleased) {
-        for (const item of order.items) {
-          if (item.variantId) {
-            await tx.productVariant.updateMany({
-              where: { id: item.variantId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-          } else {
-            await tx.product.updateMany({
-              where: { id: item.productId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-          }
-        }
+  return Sentry.withServerActionInstrumentation(
+    'cancelPendingOrder',
+    { headers: await headers() },
+    async (): Promise<ActionResult> => {
+      if (typeof accessToken !== 'string' || accessToken.length < 20) {
+        return { success: false, error: 'Invalid order token.' };
       }
-      await tx.order.updateMany({
-        where: { id: order.id, status: 'PENDING' },
-        data: {
-          status: 'CANCELLED',
-          paymentStatus: 'cancelled',
-          stockReleased: false,
-        },
-      });
-    });
 
-    return { success: true, data: undefined };
-  } catch (error) {
-    logServerError('orders.cancelPending', error);
-    // Don't leak DB errors to the customer — they're cancelling, the
-    // cleanup cron will catch this row if it lingers.
-    return { success: true, data: undefined };
-  }
+      try {
+        const order = await prisma.order.findUnique({
+          where: { accessToken },
+          select: {
+            id: true,
+            status: true,
+            stockReleased: true,
+            channel: true,
+            items: {
+              select: { productId: true, variantId: true, quantity: true },
+            },
+          },
+        });
+
+        if (!order) return { success: true, data: undefined }; // fail silently
+        if (order.channel !== 'PAYSTACK')
+          return { success: true, data: undefined };
+        if (order.status !== 'PENDING')
+          return { success: true, data: undefined };
+
+        await prisma.$transaction(async (tx) => {
+          if (order.stockReleased) {
+            for (const item of order.items) {
+              if (item.variantId) {
+                await tx.productVariant.updateMany({
+                  where: { id: item.variantId },
+                  data: { stockQuantity: { increment: item.quantity } },
+                });
+              } else {
+                await tx.product.updateMany({
+                  where: { id: item.productId },
+                  data: { stockQuantity: { increment: item.quantity } },
+                });
+              }
+            }
+          }
+          await tx.order.updateMany({
+            where: { id: order.id, status: 'PENDING' },
+            data: {
+              status: 'CANCELLED',
+              paymentStatus: 'cancelled',
+              stockReleased: false,
+            },
+          });
+        });
+
+        return { success: true, data: undefined };
+      } catch (error) {
+        logServerError('orders.cancelPending', error);
+        // Don't leak DB errors to the customer — they're cancelling, the
+        // cleanup cron will catch this row if it lingers.
+        return { success: true, data: undefined };
+      }
+    },
+  );
 }
 
 /**
@@ -796,23 +834,36 @@ export async function adminSweepAbandonedOrders(olderThanMinutes = 30): Promise<
     errored: number;
   }>
 > {
-  try {
-    await requireAdmin();
-  } catch {
-    return { success: false, error: 'Unauthorized' };
-  }
+  return Sentry.withServerActionInstrumentation(
+    'adminSweepAbandonedOrders',
+    { headers: await headers() },
+    async (): Promise<
+      ActionResult<{
+        considered: number;
+        cancelled: number;
+        promoted: number;
+        errored: number;
+      }>
+    > => {
+      try {
+        await requireAdmin();
+      } catch {
+        return { success: false, error: 'Unauthorized' };
+      }
 
-  const minutes = Math.max(10, Math.min(olderThanMinutes, 1440));
+      const minutes = Math.max(10, Math.min(olderThanMinutes, 1440));
 
-  try {
-    const result = await sweepAbandonedPendingOrders(minutes);
-    revalidatePath('/admin/orders');
-    revalidatePath('/admin');
-    return { success: true, data: result };
-  } catch (error) {
-    logServerError('orders.adminSweepAbandoned', error);
-    return { success: false, error: 'Sweep failed. Please try again.' };
-  }
+      try {
+        const result = await sweepAbandonedPendingOrders(minutes);
+        revalidatePath('/admin/orders');
+        revalidatePath('/admin');
+        return { success: true, data: result };
+      } catch (error) {
+        logServerError('orders.adminSweepAbandoned', error);
+        return { success: false, error: 'Sweep failed. Please try again.' };
+      }
+    },
+  );
 }
 
 /**
@@ -829,29 +880,37 @@ export async function adminSweepAbandonedOrders(olderThanMinutes = 30): Promise<
 export async function getOrderStatusByToken(
   accessToken: string,
 ): Promise<ActionResult<{ status: string; paymentStatus: string | null }>> {
-  if (typeof accessToken !== 'string' || accessToken.length < 20) {
-    return { success: false, error: 'Invalid order token.' };
-  }
+  return Sentry.withServerActionInstrumentation(
+    'getOrderStatusByToken',
+    { headers: await headers() },
+    async (): Promise<
+      ActionResult<{ status: string; paymentStatus: string | null }>
+    > => {
+      if (typeof accessToken !== 'string' || accessToken.length < 20) {
+        return { success: false, error: 'Invalid order token.' };
+      }
 
-  try {
-    const now = new Date();
-    const order = await prisma.order.findFirst({
-      where: {
-        accessToken,
-        OR: [
-          { accessTokenExpiresAt: null },
-          { accessTokenExpiresAt: { gt: now } },
-        ],
-      },
-      select: { status: true, paymentStatus: true },
-    });
-    if (!order) return { success: false, error: 'Order not found.' };
-    return {
-      success: true,
-      data: { status: order.status, paymentStatus: order.paymentStatus },
-    };
-  } catch (error) {
-    logServerError('orders.getStatusByToken', error);
-    return { success: false, error: 'Could not refresh status.' };
-  }
+      try {
+        const now = new Date();
+        const order = await prisma.order.findFirst({
+          where: {
+            accessToken,
+            OR: [
+              { accessTokenExpiresAt: null },
+              { accessTokenExpiresAt: { gt: now } },
+            ],
+          },
+          select: { status: true, paymentStatus: true },
+        });
+        if (!order) return { success: false, error: 'Order not found.' };
+        return {
+          success: true,
+          data: { status: order.status, paymentStatus: order.paymentStatus },
+        };
+      } catch (error) {
+        logServerError('orders.getStatusByToken', error);
+        return { success: false, error: 'Could not refresh status.' };
+      }
+    },
+  );
 }
