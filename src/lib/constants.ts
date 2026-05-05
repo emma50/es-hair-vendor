@@ -78,28 +78,28 @@ export const ITEMS_PER_PAGE = 20;
 
 export const STORE_CONFIG = {
   get whatsappNumber() {
-    return process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '';
+    return "09166303104";
   },
   get email() {
-    return process.env.NEXT_PUBLIC_STORE_EMAIL || '';
+    return 'se351436@gmail.com';
   },
   get phone() {
-    return process.env.NEXT_PUBLIC_STORE_PHONE || '';
+    return '09166303104, 07079146310';
   },
   get address() {
-    return process.env.NEXT_PUBLIC_STORE_ADDRESS || 'Lagos, Nigeria';
+    return '1, Tawose Str, Off Agboyi Road Ogudu Orioke, Ogudu, Lagos, Nigeria';
   },
   get appUrl() {
-    return process.env.NEXT_PUBLIC_APP_URL || 'https://eshair.com';
+    return process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://www.eshairvendor.com/';
   },
   get instagramUrl() {
-    return process.env.NEXT_PUBLIC_INSTAGRAM_URL || '';
+    return 'https://instagram.com/emmanuelsarahhair';
   },
   get facebookUrl() {
-    return process.env.NEXT_PUBLIC_FACEBOOK_URL || '';
+    return 'https://facebook.com/emmanuelsarahhair';
   },
   get tiktokUrl() {
-    return process.env.NEXT_PUBLIC_TIKTOK_URL || '';
+    return 'https://tiktok.com/@emmanuelsarahhair';
   },
 } as const;
 

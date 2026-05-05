@@ -82,6 +82,11 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  if (user) {
+    req.headers.set('x-user-id', user.id);
+    req.headers.set('x-user-email', user.email as string);
+  }
+
   return response;
 }
 

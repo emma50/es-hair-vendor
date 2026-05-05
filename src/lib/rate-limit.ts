@@ -51,12 +51,16 @@ interface RateLimitOptions {
   windowMs: number;
 }
 
+const isTest =
+  process.env.NODE_ENV === 'test' || process.env.VITEST === 'true';
+
 /**
  * Resolve Redis connection params from either the legacy Vercel KV env
  * vars or the newer Upstash integration env vars. `null` means "no
  * Redis configured — fall back to in-memory."
  */
 function resolveRedisEnv(): { url: string; token: string } | null {
+  if (isTest) return null; // 🔥 force in-memory during tests
   const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
   const token =
     process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;

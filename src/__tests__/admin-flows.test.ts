@@ -10,6 +10,24 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fakeDB, fakeSupabase, resetAll } from './helpers/flow-singletons';
 
+vi.mock('@/lib/auth/sync-user', async () => {
+  const mod = await import('./helpers/flow-singletons');
+  return {
+    syncUser: async (user: any, options?: any) => {
+      // Look up or create the user in fakeDB
+      let dbUser = mod.fakeDB.db.users?.get(user.id);
+      if (!dbUser) {
+        dbUser = mod.fakeDB.seedUser({
+          id: user.id,
+          email: user.email,
+          role: options?.role ?? 'CUSTOMER',
+        });
+      }
+      return dbUser;
+    },
+  };
+});
+
 vi.mock('@/lib/prisma', async () => {
   const mod = await import('./helpers/flow-singletons');
   return { prisma: mod.prismaMock };
