@@ -1136,6 +1136,7 @@ export class FakeSupabaseAuth {
     this.currentUserId = null;
     this.recoveryUserId = null;
     this.simulateStaleToken = false;
+    this.requireEmailConfirmation = true;
   }
 
   /** Directly seed a user (bypasses signup flow). */
