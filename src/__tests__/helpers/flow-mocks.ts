@@ -1128,11 +1128,14 @@ export class FakeSupabaseAuth {
   recoveryUserId: string | null = null;
   /** Email confirmation required by default (matches Supabase default). */
   requireEmailConfirmation = true;
+  /** Simulate stale/invalid refresh token (thrown by real Supabase). */
+  simulateStaleToken = false;
 
   reset() {
     this.users.clear();
     this.currentUserId = null;
     this.recoveryUserId = null;
+    this.simulateStaleToken = false;
   }
 
   /** Directly seed a user (bypasses signup flow). */
@@ -1222,6 +1225,10 @@ export class FakeSupabaseAuth {
   };
 
   getUser = async () => {
+    // Simulate stale refresh token error (thrown by real Supabase on invalid tokens).
+    if (this.simulateStaleToken) {
+      throw new Error('Invalid Refresh Token');
+    }
     if (this.currentUserId) {
       const u = this.users.get(this.currentUserId);
       if (u)

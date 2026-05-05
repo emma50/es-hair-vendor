@@ -90,7 +90,7 @@ export const STORE_CONFIG = {
     return '1, Tawose Str, Off Agboyi Road Ogudu Orioke, Ogudu, Lagos, Nigeria';
   },
   get appUrl() {
-    return process.env.NEXT_PUBLIC_APP_URL || '';
+    return process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://www.eshairvendor.com/';
   },
   get instagramUrl() {
     return 'https://instagram.com/emmanuelsarahhair';

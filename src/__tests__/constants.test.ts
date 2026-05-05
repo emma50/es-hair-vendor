@@ -122,6 +122,10 @@ describe('STORE_CONFIG', () => {
       expect(STORE_CONFIG).toHaveProperty(key);
     }
   });
+
+  it('returns a valid store app URL', () => {
+    expect(STORE_CONFIG.appUrl).toMatch(/^https?:\/\/.+$/);
+  });
 });
 
 describe('estimateShippingCost', () => {

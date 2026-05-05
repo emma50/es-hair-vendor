@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { logServerError } from '@/lib/log';
 import * as Sentry from '@sentry/nextjs';
+import { STORE_CONFIG } from '@/lib/constants';
 
 /**
  * Build a stable rate-limit key part from an email.
@@ -40,8 +41,9 @@ import type { UserRole } from '@prisma/client';
  */
 async function getSiteOrigin(): Promise<string> {
   // const envOrigin = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  const envOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (envOrigin) return envOrigin.replace(/\/$/, '');
+  const appOrigin = STORE_CONFIG.appUrl
+  if (appOrigin) return appOrigin.replace(/\/$/, '');
+  
   const hdrs = await headers();
   const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host');
   const proto = hdrs.get('x-forwarded-proto') ?? 'https';
