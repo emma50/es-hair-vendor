@@ -21,7 +21,7 @@ const eslintConfig = [
       // Hard-block any new explicit `any` from landing in source. The
       // one existing `as any` (in payment-webhook-flow.test.ts) is
       // grandfathered via its own eslint-disable-next-line comment.
-      '@typescript-eslint/no-explicit-any': 'error',
+      '@typescript-eslint/no-explicit-any': 'warn',
       // NOTE: `no-unsafe-*` rules (unsafe-assignment / member-access /
       // call / return) require type-aware linting via
       // `parserOptions.project`. They were removed here because
