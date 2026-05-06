@@ -18,3 +18,7 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
 CREATE INDEX "User_role_idx" ON "User"("role");
+
+CREATE UNIQUE INDEX one_admin_only
+ON "User" (role)
+WHERE role = 'ADMIN';

@@ -264,6 +264,30 @@ export function makePrismaMock(fake: FakeDB) {
       }
       return null;
     },
+    findFirst: async ({
+      where,
+    }: {
+      where: Record<string, unknown>;
+    }) => {
+      for (const u of db.users.values()) {
+        let match = true;
+        for (const [key, value] of Object.entries(where)) {
+          const userValue = (u as unknown as Record<string, unknown>)[key];
+          // Support both { role: 'ADMIN' } and { role: { equals: 'ADMIN' } }
+          if (value && typeof value === 'object' && 'equals' in value) {
+            if (userValue !== (value as { equals: unknown }).equals) {
+              match = false;
+              break;
+            }
+          } else if (userValue !== value) {
+            match = false;
+            break;
+          }
+        }
+        if (match) return u;
+      }
+      return null;
+    },
     create: async ({ data }: { data: AppUser }) => {
       if (db.users.has(data.id)) throw new Error('Unique constraint: user.id');
       const now = new Date();
