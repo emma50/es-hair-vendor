@@ -106,6 +106,18 @@ function seedCatalog() {
   return { cat, product };
 }
 
+function seedAdmin() {
+  const adminId = 'cadmin000000000000000000';
+  fakeSupabase.seedUser('admin@example.com', 'admin-pass', { id: adminId });
+  fakeDB.seedUser({ id: adminId, email: 'admin@example.com', role: 'ADMIN' });
+}
+
+function getSignupUser() {
+  return Array.from(fakeDB.db.users.values()).find(
+    u => u.email === VALID_SIGNUP.email
+  );
+}
+
 beforeEach(() => {
   resetAll();
   fakeHeaders.headers = new Map([
@@ -117,16 +129,22 @@ beforeEach(() => {
 // ─── SIGN-UP FLOW ─────────────────────────────────────────────────
 
 describe('customer sign-up flow', () => {
+   beforeEach(() => {
+    seedAdmin(); // Add this
+  });
+
   it('creates a Supabase user + Prisma row on valid signup', async () => {
     const result = await signUpCustomer(VALID_SIGNUP);
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.needsEmailConfirmation).toBe(true);
 
-    // Both sides of the identity should be populated.
-    expect(fakeSupabase.users.size).toBe(1);
-    expect(fakeDB.db.users.size).toBe(1);
-    const appUser = Array.from(fakeDB.db.users.values())[0]!;
+     // Admin + new signup = 2 total
+    expect(fakeSupabase.users.size).toBe(2);
+    expect(fakeDB.db.users.size).toBe(2);
+
+    // Find the non-admin user (the one we just signed up)
+    const appUser = getSignupUser()!;
     expect(appUser.email).toBe('chioma@example.com');
     expect(appUser.name).toBe('Chioma Adebayo');
     expect(appUser.role).toBe('CUSTOMER');
@@ -144,10 +162,10 @@ describe('customer sign-up flow', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.needsEmailConfirmation).toBe(true);
-    // No duplicate Prisma row was created.
-    expect(fakeDB.db.users.size).toBe(1);
-    // Supabase still has only the original user row.
-    expect(fakeSupabase.users.size).toBe(1);
+    
+    // Admin + one signup = 2 (no duplicate created)
+    expect(fakeDB.db.users.size).toBe(2);
+    expect(fakeSupabase.users.size).toBe(2);
   });
 
   it('returns fieldErrors for a weak password', async () => {
@@ -175,7 +193,7 @@ describe('customer sign-up flow', () => {
     // Attacker passes `role: 'ADMIN'` in the payload — server action
     // must ignore it (schema strips unknown keys + explicit force).
     await signUpCustomer({ ...VALID_SIGNUP, role: 'ADMIN' });
-    const appUser = Array.from(fakeDB.db.users.values())[0]!;
+    const appUser = getSignupUser()!;
     expect(appUser.role).toBe('CUSTOMER');
   });
 });
@@ -185,6 +203,7 @@ describe('customer sign-up flow', () => {
 describe('customer sign-in flow', () => {
   beforeEach(async () => {
     fakeSupabase.requireEmailConfirmation = false;
+    seedAdmin();
     await signUpCustomer(VALID_SIGNUP);
     await fakeSupabase.signOut();
   });
@@ -261,6 +280,7 @@ describe('getSessionSummary', () => {
 
   it('returns the AppUser shape for signed-in customers', async () => {
     fakeSupabase.requireEmailConfirmation = false;
+    seedAdmin();
     await signUpCustomer(VALID_SIGNUP);
     const result = await getSessionSummary();
     expect(result.authenticated).toBe(true);
